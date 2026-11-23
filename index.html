@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#23201b">
+<title>牛舎 在庫チェック</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=M+PLUS+1p:wght@500;800&family=Noto+Sans+JP:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* 台帳アプリと同じ見た目の系統。手袋でも押せる大きさ。
+   色：飼料袋のクラフト #d9a441、牛舎の焦げ茶 #23201b、注意の赤 #c8402a、良しの緑。 */
+:root{color-scheme:light dark;--bg:light-dark(#f3f0e8,#141312);--card:light-dark(#fffdf8,#1f1d1a);--ink:light-dark(#1d1b17,#efebe3);--mute:light-dark(#625c52,#a59e92);--line:light-dark(#dcd5c6,#37332d);--kraft:#d9a441;--kink:#1d1a10;--head:#23201b;--acc:#c8402a;--ok:light-dark(#2f6b45,#7cc495);--warnbg:light-dark(#fbe4dc,#3a1f19)}
+*{box-sizing:border-box;min-width:0}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.55 "Noto Sans JP",system-ui,sans-serif;overflow-x:clip}
+header{background:var(--head);color:#f3efe6;padding:14px max(4vw,14px)}
+.hrow{display:flex;align-items:center;gap:12px;max-width:760px;margin:0 auto}
+.hrow h1{font:800 20px/1.15 "M PLUS 1p",sans-serif;margin:0;flex:1}
+.hrow h1 small{display:block;font:500 13px/1.3 "Noto Sans JP",sans-serif;color:#cfc8ba}
+.hrow a{color:#f3efe6;font-size:15px;text-decoration:none;padding:10px 4px}
+main{max-width:760px;margin:0 auto;padding:12px max(4vw,14px) 90px}
+h2{font:800 18px/1.3 "M PLUS 1p",sans-serif;margin:22px 0 8px}
+h3{font:800 16px/1.3 "M PLUS 1p",sans-serif;margin:0 0 6px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px}
+.list{display:grid;gap:8px}
+.row{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px;min-height:60px;color:inherit;text-decoration:none}
+.row .t{flex:1;font-size:14px;color:var(--mute)}.row .t b{color:var(--ink);font-size:16px}
+.row .v{flex:none;text-align:right;font-size:13px;color:var(--mute)}.row .v b{display:block;font:800 18px/1.1 "M PLUS 1p",sans-serif;color:var(--ink)}
+.st{flex:none;font:800 13px/1 "Noto Sans JP",sans-serif;border-radius:8px;padding:7px 8px}
+.st.ng{background:var(--acc);color:#fff}.st.ok{background:light-dark(#dcebdf,#1f3a29);color:var(--ok)}.st.no{background:var(--line);color:var(--mute)}
+.btn{flex:none;font:700 15px/1.1 "Noto Sans JP",sans-serif;padding:12px 14px;min-height:46px;border-radius:23px;border:1px solid var(--line);background:var(--card);color:var(--ink);cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn.pri{background:light-dark(#23201b,#d9a441);color:light-dark(#f3efe6,#1d1a10);border-color:transparent}
+.btn.kr{background:var(--kraft);color:var(--kink);border-color:transparent}
+.btn.big{width:100%;min-height:62px;font-size:19px;border-radius:16px}
+.btn.warn{color:var(--acc);border-color:var(--acc)}
+.btn.sm{min-height:38px;padding:8px 11px;font-size:14px}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.alerts{display:grid;gap:6px;margin-top:4px}
+.alert{background:var(--warnbg);border-left:6px solid var(--acc);border-radius:10px;padding:10px 12px;font-size:15px;color:inherit;text-decoration:none;display:block}
+.alert b{color:var(--acc)}
+.okbar{background:light-dark(#dcebdf,#1f3a29);color:var(--ok);border-radius:10px;padding:10px 12px;font-weight:700;margin-top:4px}
+.empty,.small{color:var(--mute);font-size:14px}
+.facts{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;font-size:15px;margin:8px 0}
+.facts dt{color:var(--mute)}.facts dd{margin:0;font-weight:700}
+.adv{font:800 26px/1.1 "M PLUS 1p",sans-serif;margin:6px 0}
+.adv small{font:500 14px "Noto Sans JP",sans-serif;color:var(--mute)}
+.gauge{height:12px;border-radius:6px;background:var(--line);overflow:hidden;margin:6px 0 2px}
+.gauge i{display:block;height:100%;background:var(--kraft)}
+.gauge i.lo{background:var(--acc)}
+.note{font-size:13px;color:var(--mute);margin-top:6px}
+.red{color:var(--acc);font-weight:700}
+label.f{display:block;font-size:14px;color:var(--mute);margin:10px 0 4px}
+input,select,textarea{font:inherit;color:var(--ink);background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px;width:100%;min-height:46px}
+input.num{font:800 30px/1 "M PLUS 1p",sans-serif;text-align:right;background:var(--kraft);color:var(--kink);border:0}
+.inrow{display:flex;gap:8px;align-items:center}.inrow>span{flex:none;font-weight:700}
+.thumbs{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+.th{position:relative;width:104px;border-radius:10px;overflow:hidden;border:1px solid var(--line);background:#000}
+.th img{display:block;width:100%;height:78px;object-fit:cover;cursor:pointer}
+.th .cnt{position:absolute;left:4px;top:4px;background:var(--kraft);color:var(--kink);font:800 14px/1 "M PLUS 1p",sans-serif;padding:4px 6px;border-radius:6px}
+.th button{width:100%;border:0;background:var(--card);color:var(--ink);font:700 13px "Noto Sans JP";padding:8px 0;cursor:pointer}
+.hist{display:grid;gap:8px}
+.hrec{display:flex;gap:10px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:8px 10px}
+.hrec img{width:64px;height:48px;object-fit:cover;border-radius:6px;cursor:pointer;flex:none}
+.hrec .t{flex:1;font-size:14px}.hrec .t b{font-size:16px}
+.rule{display:grid;grid-template-columns:1fr 1fr;gap:6px;border:1px dashed var(--line);border-radius:10px;padding:8px;margin-top:6px}
+.rule .w{grid-column:1/-1}
+details{margin-top:14px}summary{cursor:pointer;font-weight:700;padding:8px 0}
+table.calc{width:100%;border-collapse:collapse;font-size:14px}table.calc td{padding:4px 2px;border-bottom:1px solid var(--line)}table.calc td:last-child{text-align:right;font-weight:700}
+/* 写真を全画面で見る・数える */
+.ov{position:fixed;inset:0;background:#0d0c0b;color:#f3efe6;z-index:50;display:flex;flex-direction:column}
+.ovbar{display:flex;gap:8px;align-items:center;padding:10px;flex-wrap:wrap;background:#23201b}
+.ovbar .n{font:800 30px/1 "M PLUS 1p",sans-serif;color:var(--kraft);margin-right:auto}
+.ovbar .n small{font-size:15px;color:#f3efe6}
+.ovbar .btn{background:#34302a;color:#f3efe6;border-color:#4a443b}
+.ovbar .btn.kr{background:var(--kraft);color:var(--kink)}
+.ovwrap{flex:1;overflow:auto;-webkit-overflow-scrolling:touch}
+.ovwrap canvas{display:block;width:100%}
+.ovhint{padding:8px 12px;font-size:14px;background:#23201b;color:#e6dfd2}
+.ovhint input[type=range]{width:100%;min-height:30px;padding:0}
+.modal{position:fixed;inset:0;background:rgb(0 0 0/.5);z-index:40;display:flex;align-items:flex-end;justify-content:center}
+.modal .card{width:min(760px,100%);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-height:92vh;overflow:auto}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#23201b;color:#f3efe6;padding:12px 18px;border-radius:24px;z-index:60;font-weight:700;box-shadow:0 4px 16px rgb(0 0 0/.3)}
+</style></head><body>
+<header><div class="hrow"><h1 id="ttl">在庫チェック<small id="sub"></small></h1><a href="#home" id="hb">一覧</a><a href="#data">データ</a></div></header>
+<main id="app"></main>
+<input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<script>
+'use strict';
+/* ===== 基本 ===== */
+const KEY='zaiko-v1',DKEY='pocket-daicho-v1',DAY=864e5;
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const t0=d=>{d=new Date(d);d.setHours(0,0,0,0);return d};
+const ymd=d=>{d=new Date(d);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const pd=s=>{const[y,m,d]=String(s).split('-').map(Number);return new Date(y,m-1,d)};
+const md=d=>{d=new Date(d);return(d.getMonth()+1)+'/'+d.getDate()+'('+'日月火水木金土'[d.getDay()]+')'};
+const hm=d=>{d=new Date(d);return d.getHours()+':'+String(d.getMinutes()).padStart(2,'0')};
+const dt=d=>ymd(d)+' '+hm(d);
+const days=(a,b)=>Math.round((t0(b)-t0(a))/DAY);
+const nf=(n,u)=>n==null||!isFinite(n)?'—':(u==='袋'?(Math.round(n*10)/10).toLocaleString('ja-JP'):Math.round(n).toLocaleString('ja-JP'));
+const ago=at=>{const d=days(at,Date.now());return d<=0?'今日 '+hm(at):d===1?'昨日':d+'日前'};
+function toast(m){const e=document.createElement('div');e.className='toast';e.textContent=m;document.body.append(e);setTimeout(()=>e.remove(),2200)}
+const numOr=(v,d=null)=>{if(v===''||v==null)return d;const n=Number(String(v).replace(/,/g,''));return isFinite(n)?n:d};
+
+/* ===== 初期の品目（数字は牛舎マップの引き継ぎ・相談で決まったもの。違えば「設定」で直す） ===== */
+function defaults(){return{v:1,
+ items:[
+  {id:'s1',name:'成雌 1番タンク（東）',feed:'ベストクイーン',kind:'tank',unit:'kg',cap:2500,grp:'seishi',active:true,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'plan',barn:'成雌牛舎',pens:'A,B'}],note:'成雌A・B房'},
+  {id:'s2',name:'成雌 2番タンク（西）',feed:'ベストクイーン',kind:'tank',unit:'kg',cap:2500,grp:'seishi',active:true,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'plan',barn:'成雌牛舎',pens:'C,D'}],note:'成雌C・D房'},
+  {id:'sg',name:'総合タンク',feed:'北の匠育成K（バラ）',kind:'tank',unit:'kg',cap:3000,grp:'sogo',active:true,every:7,needPhoto:true,useMode:'calc',manual:82,rules:[{t:'head',barn:'総合牛舎',pens:'A,B,D,育成房',kg:4},{t:'head',barn:'総合牛舎',pens:'C',kg:4.48},{t:'head',barn:'黒毛ドナー牛舎',pens:'Di',kg:2}],note:'総合単房の2頭はタンクから食べない。ドナーDiはタルで運ぶ'},
+  {id:'i1',name:'育成 ①東タンク',feed:'北の匠育成K（バラ）',kind:'tank',unit:'kg',cap:null,grp:'ikusei',active:false,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'head',barn:'育成牛舎',pens:'A,B',kg:null}],note:'育成A・B房。フィーダー完成（12月初め予定）から使う'},
+  {id:'i2',name:'育成 ②西タンク',feed:'北の匠育成K（バラ）',kind:'tank',unit:'kg',cap:null,grp:'ikusei',active:false,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'head',barn:'育成牛舎',pens:'C,D',kg:null}],note:'育成C・D房。フィーダー完成から使う'},
+  {id:'kb',name:'北の匠（20kg袋）',feed:'北の匠',kind:'bag',unit:'袋',kgPer:20,cap:null,grp:'kb',active:true,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'fixed',kg:40,label:'育成E房（1日2袋）'}],note:'牛舎内にいるプランありの成雌は1頭2kg/日。いる房を「1頭あたり」の行で足す'},
+  {id:'mf',name:'ミルフードBフレーク',feed:'子牛の離乳食',kind:'bag',unit:'袋',kgPer:null,cap:null,grp:'mf',active:true,every:7,needPhoto:true,useMode:'manual',manual:null,rules:[],note:'1日の使用量（袋）を入れると目安が出る'}
+ ],
+ grps:[
+  {id:'seishi',name:'成雌（ベストクイーン）',unit:500,interval:7,lead:14,next:'',safety:1,orders:[]},
+  {id:'sogo',name:'総合（北の匠育成K）',unit:500,interval:7,lead:14,next:'',safety:1,orders:[]},
+  {id:'ikusei',name:'育成（北の匠育成K）',unit:500,interval:7,lead:14,next:'',safety:1,orders:[]},
+  {id:'kb',name:'北の匠（袋）',unit:1,interval:7,lead:7,next:'',safety:2,orders:[]},
+  {id:'mf',name:'ミルフードBフレーク',unit:1,interval:7,lead:7,next:'',safety:2,orders:[]}
+ ],
+ checks:[],cfg:{who:'',planKg:{A:null,B:null,C:null}}}}
+let db;
+function load(){try{db=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){db=null}if(!db||!db.items)db=defaults();db.checks??=[];db.cfg??={who:'',planKg:{}};db.cfg.planKg??={}}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){alert('保存できませんでした：'+e.message)}}
+load();
+const itemOf=id=>db.items.find(i=>i.id===id);
+const grpOf=id=>db.grps.find(g=>g.id===id);
+const checksOf=id=>db.checks.filter(c=>c.item===id).sort((a,b)=>a.at-b.at);
+const lastOf=id=>checksOf(id).pop()||null;
+
+/* ===== 写真の保存（IndexedDB。localStorageには入りきらないため） ===== */
+let idbP;
+function idb(){return idbP||(idbP=new Promise((res,rej)=>{const r=indexedDB.open('zaiko-photos',1);r.onupgradeneeded=()=>r.result.createObjectStore('p',{keyPath:'pid'});r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)}))}
+async function tx(mode,fn){const d=await idb();return new Promise((res,rej)=>{const t=d.transaction('p',mode);const st=t.objectStore('p');let out;const q=fn(st);if(q)q.onsuccess=()=>out=q.result;t.oncomplete=()=>res(out);t.onerror=()=>rej(t.error)})}
+const pPut=o=>tx('readwrite',s=>s.put(o));
+const pGet=pid=>tx('readonly',s=>s.get(pid));
+const pDel=pid=>tx('readwrite',s=>s.delete(pid));
+const pKeys=()=>tx('readonly',s=>s.getAllKeys());
+const urlCache={};
+async function purl(pid){if(urlCache[pid])return urlCache[pid];const o=await pGet(pid);if(!o)return null;return urlCache[pid]=URL.createObjectURL(o.blob)}
+async function fillImgs(root=document){for(const im of root.querySelectorAll('img[data-pid]')){const u=await purl(im.dataset.pid);if(u)im.src=u;else{im.alt='（写真は消去済み）';im.style.background='#555'}}}
+
+/* 写真を撮る → 縮小 → 下に日時・品目・担当の帯を焼き込む（証拠用） */
+async function makePhoto(file,it){
+ const bmp=await createImageBitmap(file);
+ const M=1600,s=Math.min(1,M/Math.max(bmp.width,bmp.height));const w=Math.round(bmp.width*s),h=Math.round(bmp.height*s);
+ const bh=Math.max(36,Math.round(w*0.045));
+ const at=(file.lastModified&&Math.abs(Date.now()-file.lastModified)<15*60e3)?file.lastModified:Date.now();
+ const cv=document.createElement('canvas');cv.width=w;cv.height=h+bh;const x=cv.getContext('2d');
+ x.drawImage(bmp,0,0,w,h);x.fillStyle='#23201b';x.fillRect(0,h,w,bh);
+ x.fillStyle='#d9a441';x.font=`800 ${Math.round(bh*.5)}px "M PLUS 1p",sans-serif`;x.textBaseline='middle';
+ x.fillText(`${dt(at)}  ${it.name}${db.cfg.who?'  '+db.cfg.who:''}`,Math.round(bh*.3),h+bh/2);
+ const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',.8));
+ const pid=uid();await pPut({pid,blob,w,h,at,item:it.id,saved:Date.now()});
+ try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
+ return{pid,w,h,at,marks:[]}}
+
+/* ===== 台帳アプリのデータを読む（読むだけ。書き込まない） ===== */
+function daicho(){try{const d=JSON.parse(localStorage.getItem(DKEY)||'null');if(!d||!d.cows)return null;
+ const last={};for(const e of d.events||[])if(e.type==='移動'&&(!last[e.tag]||e.date>=last[e.tag].date))last[e.tag]=e;
+ const cows=[];for(const[t,c]of Object.entries(d.cows)){if(c.gone)continue;const l=last[t]||{barn:c.barn,pen:c.pen};if(!l.barn)continue;cows.push({tag:t,barn:l.barn,pen:String(l.pen||''),plan:c.plan})}
+ return{cows,n:Object.keys(d.cows).length}}catch(e){return null}}
+let DC=null;
+const pensOf=s=>String(s||'').split(/[,、，\s]+/).filter(Boolean);
+const planL=p=>(String(p||'').toUpperCase().match(/[A-Z]/)||[])[0]||'';
+
+/* 1日の使用量（計算）：台帳の頭数 × 1頭あたり、またはプランの1日量 */
+function calcUse(it){
+ if(!it.rules||!it.rules.length)return null;
+ const rows=[];let kg=0,ok=true;
+ for(const r of it.rules){
+  if(r.t==='fixed'){const v=numOr(r.kg);rows.push({label:r.label||'決まった量',n:null,kg:v});if(v==null)ok=false;else kg+=v;continue}
+  if(!DC){ok=false;rows.push({label:`${r.barn} ${r.pens}（台帳のデータが無い）`,n:null,kg:null});continue}
+  const ps=pensOf(r.pens);const cs=DC.cows.filter(c=>c.barn===r.barn&&ps.includes(c.pen));
+  if(r.t==='head'){const per=numOr(r.kg);const v=per==null?null:cs.length*per;rows.push({label:`${r.barn} ${r.pens}：${cs.length}頭 × ${per??'?'}kg`,n:cs.length,kg:v});if(v==null)ok=false;else kg+=v}
+  else if(r.t==='plan'){const by={};for(const c of cs){const L=planL(c.plan);if(L)by[L]=(by[L]||0)+1}
+   const none=cs.filter(c=>!planL(c.plan)).length;
+   for(const L of Object.keys(by).sort()){const per=numOr(db.cfg.planKg[L]);const v=per==null?null:by[L]*per;rows.push({label:`${r.barn} ${r.pens} プラン${L}：${by[L]}頭 × ${per??'?'}kg`,n:by[L],kg:v});if(v==null)ok=false;else kg+=v}
+   if(none)rows.push({label:`${r.barn} ${r.pens} プランなし：${none}頭（0kgとして計算）`,n:none,kg:0});
+   if(!cs.length)rows.push({label:`${r.barn} ${r.pens}：0頭`,n:0,kg:0})}}
+ let v=ok?kg:null;if(v!=null&&it.unit==='袋'){const per=numOr(it.kgPer);v=per?kg/per:null;if(!per)ok=false}
+ return{v,ok:v!=null,rows,kg}}
+/* 1日の使用量（実測）：チェックの残量の差から。間に納品があった区間は使わない */
+function measUse(it){const cs=checksOf(it.id);const g=grpOf(it.grp);const od=(g?.orders||[]).map(o=>o.dd);
+ let used=0,dd=0;const lim=Date.now()-35*DAY;
+ for(let k=1;k<cs.length;k++){const a=cs[k-1],b=cs[k];if(b.at<lim)continue;const span=(b.at-a.at)/DAY;if(span<.5)continue;
+  if(od.some(d=>d>ymd(a.at)&&d<=ymd(b.at)))continue;const dr=a.val-b.val;if(dr<0)continue;used+=dr;dd+=span}
+ return dd>=1?used/dd:null}
+function useOf(it){const c=calcUse(it),m=measUse(it),man=numOr(it.manual);
+ const pick={calc:[c?.ok?c.v:null,'計算'],manual:[man,'入力'],meas:[m,'実測']};
+ const order=it.useMode==='manual'?['manual','calc','meas']:it.useMode==='meas'?['meas','calc','manual']:['calc','manual','meas'];
+ for(const k of order){const[v,l]=pick[k];if(v!=null)return{v,src:l,c,m,man,want:k}}
+ return{v:null,src:'',c,m,man}}
+
+/* ===== 注文の目安 ===== */
+function grpState(g){
+ const its=db.items.filter(i=>i.grp===g.id&&i.active);if(!its.length)return null;
+ const unit=its[0].unit;const L=its.map(i=>({it:i,last:lastOf(i.id),u:useOf(i)}));
+ const missing=L.filter(x=>!x.last).map(x=>x.it.name);const noUse=L.filter(x=>x.u.v==null).map(x=>x.it.name);
+ const cap=L.every(x=>numOr(x.it.cap)!=null)?L.reduce((a,x)=>a+numOr(x.it.cap),0):null;
+ const st={g,its,L,unit,missing,noUse,cap};
+ if(missing.length||noUse.length)return st;
+ const U=L.reduce((a,x)=>a+x.u.v,0);const latest=Math.max(...L.map(x=>x.last.at));const lday=ymd(latest);
+ const ords=(g.orders||[]).filter(o=>o.dd>lday);
+ const P=t=>L.reduce((a,x)=>a+x.last.val-x.u.v*Math.max(0,(t-x.last.at)/DAY),0)+ords.filter(o=>pd(o.dd)<t).reduce((a,o)=>a+numOr(o.qty,0),0);
+ Object.assign(st,{U,P,now:P(Date.now()),ords});
+ // 空になる日（注文済みの納品も入れて）
+ if(U>0){let t=t0(Date.now()).getTime();for(let k=0;k<120;k++){t+=DAY;if(P(t)<=0){st.empty=t;break}}}
+ // 次に注文する納品日
+ if(g.next){const T=t0(Date.now()).getTime();let D=pd(g.next).getTime();const iv=Math.max(1,numOr(g.interval,7))*DAY,lead=numOr(g.lead,14)*DAY;
+  let k=0;const skipped=[];while((D-lead<T||(g.orders||[]).some(o=>o.dd===ymd(D)))&&k++<200){if(D>=T&&!(g.orders||[]).some(o=>o.dd===ymd(D)))skipped.push(D);D+=iv}st.skipped=skipped;
+  const PD=P(D);const need=U*(numOr(g.interval,7)+numOr(g.safety,0))-Math.max(0,PD);const u=Math.max(1,numOr(g.unit,1));
+  let q=need<=0?0:Math.ceil(need/u-1e-9)*u;let capped=false;
+  if(cap!=null){const mx=Math.floor((cap-Math.max(0,PD))/u)*u;if(q>mx){q=Math.max(0,mx);capped=true}}
+  Object.assign(st,{D,deadline:D-lead,PD,q,capped,toDL:days(Date.now(),D-lead)})}
+ return st}
+
+/* ===== 警告 ===== */
+function warnings(){const W=[];const now=Date.now();
+ for(const it of db.items.filter(i=>i.active)){const l=lastOf(it.id);const ev=numOr(it.every,7);
+  if(!l)W.push({it,kind:'未チェック',txt:`<b>まだチェックしていません</b>：${esc(it.name)}`});
+  else if(days(l.at,now)>ev)W.push({it,kind:'未チェック',txt:`<b>${days(l.at,now)}日チェックしていません</b>：${esc(it.name)}（${ev}日ごとの決まり）`});
+  else if(it.needPhoto&&!(l.photos||[]).length)W.push({it,kind:'写真なし',txt:`<b>写真がありません</b>：${esc(it.name)}（${md(l.at)}のチェック）`})}
+ for(const g of db.grps){const s=grpState(g);if(!s||s.toDL==null)continue;
+  if(s.toDL<=2){const old=s.L.filter(x=>!x.last||x.last.at<s.deadline-3*DAY);
+   for(const x of old)if(!W.some(w=>w.it===x.it&&w.kind==='未チェック'))W.push({it:x.it,kind:'注文前',txt:`<b>注文の前にチェック</b>：${esc(x.it.name)}（締切 ${md(s.deadline)}）`})}
+  if(s.empty&&s.D&&s.empty<s.D)W.push({it:s.its[0],kind:'不足',txt:`<b>${md(s.empty)}ごろ空になる見込み</b>：${esc(g.name)}（次の納品 ${md(s.D)} より前）`})}
+ return W}
+
+/* ===== 画面 ===== */
+const app=$('#app');
+function setHead(t,s){$('#ttl').firstChild.textContent=t;$('#sub').textContent=s||''}
+function route(){const h=decodeURIComponent(location.hash.slice(1)||'home');DC=daicho();window.scrollTo(0,0);
+ if(h.startsWith('i-'))return viewItem(h.slice(2));
+ if(h.startsWith('chk-'))return viewCheck(h.slice(4));
+ if(h==='data')return viewData();
+ viewHome()}
+addEventListener('hashchange',()=>{document.querySelectorAll('.ov,.modal').forEach(e=>e.remove());CT=null;if(DRAFT&&!location.hash.startsWith('#chk-'))dropDraft();route()});
+
+function itemRow(it){const l=lastOf(it.id);const u=useOf(it);const ev=numOr(it.every,7);
+ const late=!l||days(l.at,Date.now())>ev;const left=l&&u.v>0?(l.val-u.v*(Date.now()-l.at)/DAY)/u.v:null;
+ return `<div class="row"><a href="#i-${it.id}" style="flex:1;display:flex;gap:10px;align-items:center;color:inherit;text-decoration:none"><span class="t"><b>${esc(it.name)}</b><br>${esc(it.feed||'')}${l?` ・${ago(l.at)}`:''}</span>
+ <span class="v">${l?`<b>${nf(l.val,it.unit)}<small style="font-size:12px"> ${it.unit}</small></b>${left!=null?`あと約${Math.max(0,Math.floor(left))}日`:''}`:'—'}</span></a>
+ ${late?'<span class="st ng">未</span>':(it.needPhoto&&!(l.photos||[]).length?'<span class="st ng">写真</span>':'<span class="st ok">済</span>')}
+ <a class="btn sm kr" href="#chk-${it.id}">チェック</a></div>`}
+
+function grpCard(g){const s=grpState(g);if(!s)return'';const u=s.unit;
+ let h=`<div class="card"><h3>${esc(g.name)}</h3>`;
+ if(s.missing.length)return h+`<p class="small">残量のチェックがまだ：${s.missing.map(esc).join('・')}</p></div>`;
+ if(s.noUse.length)return h+`<p class="small">1日の使用量が決まっていません：${s.noUse.map(esc).join('・')}（品目のページで入れる）</p></div>`;
+ const pct=s.cap?Math.max(0,Math.min(100,s.now/s.cap*100)):null;
+ h+=`<dl class="facts"><dt>今の残り</dt><dd>約 ${nf(Math.max(0,s.now),u)} ${u}${s.cap?` / ${nf(s.cap,u)}`:''}</dd><dt>1日に使う</dt><dd>約 ${nf(s.U,u)} ${u}</dd>${s.empty?`<dt>空になる日</dt><dd class="${s.D&&s.empty<s.D?'red':''}">${md(s.empty)}ごろ</dd>`:''}</dl>`;
+ if(pct!=null)h+=`<div class="gauge"><i class="${pct<20?'lo':''}" style="width:${pct}%"></i></div>`;
+ if(!g.next)h+=`<p class="small">「データ」でこのグループの<b>次の納品日</b>を入れると、注文量の目安が出ます。</p>`;
+ else{h+=`<p style="margin:10px 0 0">次の注文：<b class="${s.toDL<=2?'red':''}">締切 ${md(s.deadline)}${s.toDL===0?'（今日）':s.toDL>0?`（あと${s.toDL}日）`:''}</b> → 納品 ${md(s.D)}</p>
+  <p class="small" style="margin:2px 0">納品日の前の残り（予想）：${s.PD<0?`<span class="red">足りない（${nf(-s.PD,u)} ${u} 不足）</span>`:`約 ${nf(s.PD,u)} ${u}`}</p>
+  <div class="adv">${s.q>0?`${nf(s.q,u)} ${u}`:'注文しなくてよい見込み'} <small>おすすめ（${numOr(g.interval,7)}日＋予備${numOr(g.safety,0)}日分・${nf(g.unit,u)}${u}単位）</small></div>
+  ${s.capped?'<p class="note red">タンクに入りきる量にしぼっています。</p>':''}${s.skipped?.length?`<p class="note red">${s.skipped.map(md).join('・')}の納品は締切が過ぎていて、注文の記録がありません。頼んであれば「注文を記録」で入れてください（予想が正しくなります）。</p>`:''}
+  <div class="btns"><button class="btn pri" data-ord="${g.id}">注文を記録</button></div>`}
+ if(s.ords.length)h+=`<p class="note">注文済み：${s.ords.map(o=>`${md(pd(o.dd))} ${nf(o.qty,u)}${u}`).join('、')}</p>`;
+ h+=`<p class="note">目安です。注文の判断と正本は Excel の牛舎マップ。</p></div>`;return h}
+
+function viewHome(){setHead('在庫チェック',md(Date.now()));
+ const W=warnings();const act=db.items.filter(i=>i.active),off=db.items.filter(i=>!i.active);
+ app.innerHTML=`<div class="alerts">${W.length?W.map(w=>`<a class="alert" href="#chk-${w.it.id}">${w.txt}</a>`).join(''):'<div class="okbar">チェックはすべて済んでいます</div>'}</div>
+ <h2>注文の目安</h2><div class="list">${db.grps.map(grpCard).filter(Boolean).join('')||'<p class="empty">使っている品目がありません</p>'}</div>
+ <h2>チェックの一覧</h2><div class="list">${act.map(itemRow).join('')}</div>
+ ${off.length?`<details><summary>使っていない品目（${off.length}）</summary><div class="list">${off.map(it=>`<a class="row" href="#i-${it.id}"><span class="t"><b>${esc(it.name)}</b><br>${esc(it.note||'')}</span><span class="st no">休止</span></a>`).join('')}</div></details>`:''}
+ ${DC?'':'<p class="note">台帳アプリのデータが見つかりません。頭数からの計算は使えず、入力した1日量か実測で目安を出します。</p>'}`;
+ app.querySelectorAll('[data-ord]').forEach(b=>b.onclick=()=>orderModal(grpOf(b.dataset.ord)))}
+
+function orderModal(g){const s=grpState(g);const u=s?.unit||'';
+ const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card"><h3>注文を記録：${esc(g.name)}</h3>
+ <label class="f">納品日</label><input type="date" id="od" value="${s?.D?ymd(s.D):ymd(Date.now()+14*DAY)}">
+ <label class="f">注文した量（${u}）</label><div class="inrow"><input class="num" id="oq" inputmode="decimal" value="${s?.q??''}"><span>${u}</span></div>
+ <label class="f">メモ</label><input id="om" placeholder="業者・電話した人など">
+ <div class="btns" style="margin-top:14px"><button class="btn pri" id="ok">記録する</button><button class="btn" id="cx">やめる</button></div>
+ <p class="note">注文そのものは今までどおり業者へ。ここは「頼んだ」の記録です（予想の残量に入ります）。</p></div>`;
+ document.body.append(m);m.querySelector('#cx').onclick=()=>m.remove();
+ m.querySelector('#ok').onclick=()=>{const dd=m.querySelector('#od').value,q=numOr(m.querySelector('#oq').value);if(!dd||q==null)return alert('納品日と量を入れてください');
+  g.orders.push({id:uid(),on:ymd(Date.now()),dd,qty:q,memo:m.querySelector('#om').value});save();m.remove();toast('記録しました');route()}}
+
+/* ----- 品目のページ ----- */
+function viewItem(id){const it=itemOf(id);if(!it)return viewHome();setHead(it.name,it.feed);
+ const cs=checksOf(id).reverse();const u=useOf(it);const g=grpOf(it.grp);
+ const crow=u.c?u.c.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.kg==null?'?':nf(r.kg)+' kg'}</td></tr>`).join(''):'';
+ app.innerHTML=`<a class="btn big kr" href="#chk-${id}">残量をチェック（写真を撮る）</a>
+ ${it.note?`<p class="note">${esc(it.note)}</p>`:''}
+ <h2>1日の使用量</h2><div class="card">
+  <div class="adv">${u.v==null?'未設定':`${nf(u.v,it.unit)} ${it.unit}`} <small>${u.src?'（'+u.src+'）':''}</small></div>
+  <dl class="facts"><dt>計算</dt><dd>${u.c?.ok?nf(u.c.v,it.unit)+' '+it.unit:'—'}</dd><dt>入力</dt><dd>${u.man!=null?nf(u.man,it.unit)+' '+it.unit:'—'}</dd><dt>実測</dt><dd>${u.m!=null?nf(u.m,it.unit)+' '+it.unit+'<span class="small">（直近5週）</span>':'—<span class="small">（チェック2回以上で出る）</span>'}</dd></dl>
+  ${crow?`<table class="calc">${crow}</table>`:''}
+  <label class="f">どれを使うか</label><select id="um"><option value="calc">計算（台帳の頭数×量）→無ければ入力→実測</option><option value="manual">入力した量→無ければ計算→実測</option><option value="meas">実測→無ければ計算→入力</option></select>
+  <label class="f">入力する1日量（${it.unit}）</label><input id="man" inputmode="decimal" value="${it.manual??''}">
+ </div>
+ <h2>チェックの記録（${cs.length}）</h2><div class="hist">${cs.map(c=>`<div class="hrec">${(c.photos||[])[0]?`<img data-pid="${c.photos[0].pid}" data-view="${c.id}" alt="">`:'<span class="st ng">写真なし</span>'}
+  <span class="t"><b>${nf(c.val,it.unit)} ${it.unit}</b>　${dt(c.at)}<br><span class="small">${esc(c.who||'')}${(c.photos||[]).length?` ・写真${c.photos.length}枚`:''}${(c.photos||[]).some(p=>p.marks?.length)?` ・数えた ${c.photos.reduce((a,p)=>a+(p.marks?.length||0),0)}`:''}${c.memo?' ・'+esc(c.memo):''}</span></span>
+  <button class="btn sm" data-del="${c.id}">消す</button></div>`).join('')||'<p class="empty">まだありません</p>'}</div>
+ <details><summary>この品目の設定</summary><div class="card">
+  <label class="f">名前</label><input id="s_name" value="${esc(it.name)}">
+  <label class="f">飼料</label><input id="s_feed" value="${esc(it.feed||'')}">
+  <label class="f">単位</label><select id="s_unit"><option>kg</option><option>袋</option></select>
+  <label class="f">1袋のkg（袋のとき）</label><input id="s_kgp" inputmode="decimal" value="${it.kgPer??''}">
+  <label class="f">容量（${it.unit}。タンクの最大。入りきる量の計算に使う）</label><input id="s_cap" inputmode="decimal" value="${it.cap??''}">
+  <label class="f">何日ごとにチェックするか（過ぎると警告）</label><input id="s_ev" inputmode="numeric" value="${it.every??7}">
+  <label class="f">注文のグループ（同じグループは合算）</label><select id="s_grp">${db.grps.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
+  <label class="f"><input type="checkbox" id="s_ph" style="width:auto;min-height:0"> 写真を必ず撮る（無いと警告）</label>
+  <label class="f"><input type="checkbox" id="s_act" style="width:auto;min-height:0"> 使っている（外すと一覧と警告から外れる）</label>
+  <label class="f">メモ</label><input id="s_note" value="${esc(it.note||'')}">
+  <h3 style="margin-top:14px">計算のルール</h3><div id="rules"></div>
+  <div class="btns" style="margin-top:8px"><button class="btn sm" id="addR">行を足す</button></div>
+  <div class="btns" style="margin-top:14px"><button class="btn pri" id="sv">設定を保存</button><button class="btn warn" id="delI">この品目を消す</button></div>
+ </div></details>`;
+ $('#um').value=it.useMode||'calc';$('#s_unit').value=it.unit;$('#s_grp').value=it.grp;$('#s_ph').checked=!!it.needPhoto;$('#s_act').checked=!!it.active;
+ $('#um').onchange=e=>{it.useMode=e.target.value;save();viewItem(id)};
+ $('#man').onchange=e=>{it.manual=numOr(e.target.value);save();viewItem(id)};
+ let rules=JSON.parse(JSON.stringify(it.rules||[]));
+ const drawR=()=>{$('#rules').innerHTML=rules.map((r,k)=>`<div class="rule"><select data-k="${k}" data-f="t"><option value="plan">プランの1日量（成雌）</option><option value="head">1頭あたり</option><option value="fixed">決まった量</option></select>
+  ${r.t==='fixed'?`<input data-k="${k}" data-f="label" placeholder="説明" value="${esc(r.label||'')}">`:`<input data-k="${k}" data-f="barn" placeholder="牛舎（例 総合牛舎）" value="${esc(r.barn||'')}">`}
+  ${r.t==='fixed'?'':`<input data-k="${k}" data-f="pens" placeholder="房（例 A,B）" value="${esc(r.pens||'')}">`}
+  ${r.t==='plan'?'<span class="small" style="align-self:center">量は「データ」のプランの1日量</span>':`<input data-k="${k}" data-f="kg" inputmode="decimal" placeholder="${r.t==='fixed'?'kg/日':'kg/頭/日'}" value="${r.kg??''}">`}
+  <button class="btn sm w" data-rm="${k}">この行を消す</button></div>`).join('')||'<p class="small">ルールなし（入力した1日量か実測を使う）</p>';
+  $('#rules').querySelectorAll('[data-f]').forEach(e=>e.onchange=()=>{const r=rules[e.dataset.k];r[e.dataset.f]=e.dataset.f==='kg'?numOr(e.value):e.value;if(e.dataset.f==='t')drawR()});
+  $('#rules').querySelectorAll('select[data-f=t]').forEach(e=>e.value=rules[e.dataset.k].t);
+  $('#rules').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{rules.splice(b.dataset.rm,1);drawR()})};
+ drawR();$('#addR').onclick=()=>{rules.push({t:'head',barn:'',pens:'',kg:null});drawR()};
+ $('#sv').onclick=()=>{Object.assign(it,{name:$('#s_name').value.trim()||it.name,feed:$('#s_feed').value,unit:$('#s_unit').value,kind:$('#s_unit').value==='袋'?'bag':'tank',kgPer:numOr($('#s_kgp').value),cap:numOr($('#s_cap').value),every:numOr($('#s_ev').value,7),grp:$('#s_grp').value,needPhoto:$('#s_ph').checked,active:$('#s_act').checked,note:$('#s_note').value,rules});save();toast('保存しました');viewItem(id)};
+ $('#delI').onclick=()=>{if(confirm(`「${it.name}」を消しますか？（チェックの記録は残ります）`)){db.items=db.items.filter(x=>x!==it);save();location.hash='#home'}};
+ app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const c=db.checks.find(x=>x.id===b.dataset.del);if(!confirm(`${dt(c.at)} のチェックを消しますか？（写真も消えます）`))return;
+  for(const p of c.photos||[])await pDel(p.pid).catch(()=>{});db.checks=db.checks.filter(x=>x!==c);save();viewItem(id)});
+ app.querySelectorAll('[data-view]').forEach(im=>im.onclick=()=>{const c=db.checks.find(x=>x.id===im.dataset.view);viewPhotos(c,it)});
+ fillImgs(app)}
+
+/* ----- チェックの画面 ----- */
+let DRAFT=null;
+function dropDraft(){if(DRAFT&&!DRAFT.saved)for(const p of DRAFT.photos)pDel(p.pid).catch(()=>{});DRAFT=null}
+function viewCheck(id){const it=itemOf(id);if(!it)return viewHome();
+ if(!DRAFT||DRAFT.item!==id){dropDraft();DRAFT={item:id,photos:[],val:'',memo:'',typed:false}}
+ setHead('チェック：'+it.name,it.feed);const l=lastOf(id);const sum=DRAFT.photos.reduce((a,p)=>a+(p.marks?.length||0),0);const counted=DRAFT.photos.some(p=>p.marks?.length);
+ if(counted&&!DRAFT.typed)DRAFT.val=String(sum);
+ app.innerHTML=`<div class="card"><h3>1. 写真を撮る${it.needPhoto?'<span class="red">（必須）</span>':''}</h3>
+  <p class="small">${it.unit==='袋'?'袋の山が全部入るように。2か所にあるときは2枚に分けて撮る。':'タンクの目盛り・のぞき窓の残りの高さがわかるように。'}</p>
+  <div class="thumbs">${DRAFT.photos.map((p,k)=>`<div class="th"><img data-pid="${p.pid}" data-k="${k}" alt="">${p.marks?.length?`<span class="cnt">${p.marks.length}</span>`:''}<button data-cnt="${k}">${it.unit==='袋'?'数える':'見る'}</button><button data-rmp="${k}">消す</button></div>`).join('')}</div>
+  <div class="btns" style="margin-top:10px"><button class="btn big kr" id="shot">📷 写真を撮る</button></div></div>
+ <div class="card" style="margin-top:12px"><h3>2. 残りの量</h3>
+  ${counted?`<p class="small">写真で数えた合計：<b>${sum} 袋</b>（直したときは下の数を書きかえる）</p>`:''}
+  <div class="inrow"><input class="num" id="val" inputmode="decimal" value="${esc(DRAFT.val)}" placeholder="0"><span>${it.unit}</span></div>
+  ${l?`<p class="small">前回：${nf(l.val,it.unit)} ${it.unit}（${dt(l.at)}）</p>`:''}
+  <label class="f">担当</label><input id="who" value="${esc(db.cfg.who||'')}" placeholder="名前">
+  <label class="f">メモ</label><input id="memo" value="${esc(DRAFT.memo)}" placeholder="気づいたこと（湿気・破れ・ネズミなど）">
+ </div>
+ <div class="btns" style="margin-top:14px"><button class="btn big pri" id="save">記録する</button></div>
+ <p class="note">撮った写真には日時・品目・担当の帯が入ります。写真はこのスマホの中だけに保存されます。</p>`;
+ fillImgs(app);
+ $('#val').oninput=e=>{DRAFT.val=e.target.value;DRAFT.typed=true};$('#memo').oninput=e=>DRAFT.memo=e.target.value;
+ $('#who').onchange=e=>{db.cfg.who=e.target.value.trim();save()};
+ $('#shot').onclick=()=>{const c=$('#cam');c.value='';c.onchange=async()=>{const f=c.files[0];if(!f)return;toast('写真を保存しています…');
+   try{const p=await makePhoto(f,it);DRAFT.photos.push(p);viewCheck(id);if(it.unit==='袋')openCount(p,()=>viewCheck(id))}catch(e){alert('写真を読めませんでした：'+e.message)}};c.click()};
+ app.querySelectorAll('[data-cnt]').forEach(b=>b.onclick=()=>{const p=DRAFT.photos[b.dataset.cnt];if(it.unit==='袋')openCount(p,()=>viewCheck(id));else viewOne(p)});
+ app.querySelectorAll('.th img').forEach(im=>im.onclick=()=>viewOne(DRAFT.photos[im.dataset.k]));
+ app.querySelectorAll('[data-rmp]').forEach(b=>b.onclick=async()=>{const p=DRAFT.photos.splice(b.dataset.rmp,1)[0];await pDel(p.pid).catch(()=>{});viewCheck(id)});
+ $('#save').onclick=()=>{const v=numOr($('#val').value);if(v==null)return alert('残りの量を入れてください');
+  if(it.needPhoto&&!DRAFT.photos.length&&!confirm('写真がありません。写真なしで記録しますか？（「写真なし」の警告が出ます）'))return;
+  if(it.cap&&v>it.cap*1.05&&!confirm(`容量（${it.cap}${it.unit}）より多い数です。このまま記録しますか？`))return;
+  db.checks.push({id:uid(),item:id,at:Date.now(),val:v,photos:DRAFT.photos.map(p=>({pid:p.pid,w:p.w,h:p.h,at:p.at,marks:p.marks||[]})),who:db.cfg.who,memo:DRAFT.memo});
+  DRAFT.saved=true;DRAFT=null;save();toast('記録しました');location.hash='#home'}}
+
+/* ----- 写真を見る（数えた印つき） ----- */
+async function drawMarked(p,maxW){const o=await pGet(p.pid);if(!o)return null;const bmp=await createImageBitmap(o.blob);
+ const s=maxW?Math.min(1,maxW/bmp.width):1;const cv=document.createElement('canvas');cv.width=Math.round(bmp.width*s);cv.height=Math.round(bmp.height*s);const x=cv.getContext('2d');x.drawImage(bmp,0,0,cv.width,cv.height);
+ drawMarks(x,p.marks||[],s,p.w,p.h);return cv}
+function drawMarks(x,marks,s,w,h){const r=Math.max(w,h)/55*s;x.lineWidth=Math.max(2,r*.18);x.textAlign='center';x.textBaseline='middle';x.font=`800 ${Math.round(r*1.05)}px "M PLUS 1p",sans-serif`;
+ marks.forEach((m,k)=>{x.beginPath();x.arc(m[0]*s,m[1]*s,r,0,7);x.fillStyle=m[2]?'rgba(120,200,255,.55)':'rgba(242,194,48,.6)';x.fill();x.strokeStyle='#1d1a10';x.stroke();x.fillStyle='#1d1a10';x.fillText(k+1,m[0]*s,m[1]*s+1)})}
+async function viewOne(p){const ov=document.createElement('div');ov.className='ov';ov.innerHTML=`<div class="ovbar"><span class="n">${p.marks?.length?p.marks.length+'<small> 個</small>':''}</span><button class="btn" id="cl">閉じる</button></div><div class="ovwrap" id="w"></div>`;
+ document.body.append(ov);ov.querySelector('#cl').onclick=()=>ov.remove();const cv=await drawMarked(p,1600);if(cv)ov.querySelector('#w').append(cv);else ov.querySelector('#w').textContent='写真は消去済みです'}
+function viewPhotos(c,it){let k=0;const ov=document.createElement('div');ov.className='ov';document.body.append(ov);
+ const draw=async()=>{const p=c.photos[k];ov.innerHTML=`<div class="ovbar"><span class="n">${nf(c.val,it.unit)}<small> ${it.unit}　${dt(c.at)}</small></span>${c.photos.length>1?`<button class="btn" id="nx">次（${k+1}/${c.photos.length}）</button>`:''}<button class="btn" id="cl">閉じる</button></div><div class="ovhint">${esc(it.name)}${c.who?' ・'+esc(c.who):''}${p.marks?.length?` ・数えた ${p.marks.length}`:''}${c.memo?' ・'+esc(c.memo):''}</div><div class="ovwrap" id="w"></div>`;
+  ov.querySelector('#cl').onclick=()=>ov.remove();const nx=ov.querySelector('#nx');if(nx)nx.onclick=()=>{k=(k+1)%c.photos.length;draw()};
+  const cv=await drawMarked(p,1600);if(cv)ov.querySelector('#w').append(cv);else ov.querySelector('#w').textContent='写真は消去済みです'};draw()}
+
+/* ===== 数える：タップで1つずつ ＋ 見本を囲んで自動（似た模様を探す） ===== */
+let CT=null;
+async function openCount(p,done){const o=await pGet(p.pid);if(!o)return alert('写真が見つかりません');const bmp=await createImageBitmap(o.blob);
+ CT={p,bmp,w:p.w,h:p.h,marks:(p.marks||[]).map(m=>[...m]),mode:'tap',zoom:1,thr:62,ncc:null,rect:null,done};
+ const ov=document.createElement('div');ov.className='ov';ov.id='cov';ov.innerHTML=`<div class="ovbar"><span class="n" id="cn">0<small> 個</small></span>
+  <button class="btn kr" id="auto">見本を囲んで自動</button><button class="btn" id="zm">拡大</button><button class="btn" id="clr">全部消す</button><button class="btn kr" id="fin">決定</button></div>
+  <div class="ovhint" id="hint"></div><div class="ovwrap" id="cw"><canvas id="cc"></canvas></div>`;
+ document.body.append(ov);const cv=ov.querySelector('#cc');cv.width=bmp.width;cv.height=bmp.height;
+ const hint=()=>{const h=ov.querySelector('#hint');
+  if(CT.mode==='rect')h.innerHTML='<b>袋を1つだけ</b>、指でなぞって四角に囲んでください（ほかの袋と同じ向き・大きさのものを選ぶ）';
+  else if(CT.ncc)h.innerHTML=`自動で ${CT.marks.filter(m=>m[2]).length} 個みつけました。<b>まちがいはタップで消す、もれはタップで足す。</b><br>ゆるい ← <input type="range" id="thr" min="35" max="92" value="${CT.thr}" style="width:55%;vertical-align:middle"> → きびしい`;
+  else h.innerHTML='袋を<b>1つずつタップ</b>（もう一度タップで消す）。たくさんあるときは「見本を囲んで自動」。';
+  const t=h.querySelector('#thr');if(t)t.oninput=()=>{CT.thr=+t.value;pick();draw()}};
+ const draw=()=>{const x=cv.getContext('2d');x.drawImage(bmp,0,0);drawMarks(x,CT.marks,1,CT.w,CT.h);
+  if(CT.rect){x.strokeStyle='#4fc3f7';x.lineWidth=Math.max(3,CT.w/300);x.setLineDash([12,8]);x.strokeRect(CT.rect.x,CT.rect.y,CT.rect.w,CT.rect.h);x.setLineDash([])}
+  ov.querySelector('#cn').innerHTML=CT.marks.length+'<small> 個</small>';cv.style.width=(CT.zoom*100)+'%';cv.style.touchAction=CT.mode==='rect'?'none':'manipulation'};
+ CT.redraw=()=>{draw();hint()};
+ const pos=e=>{const b=cv.getBoundingClientRect();return[(e.clientX-b.left)*cv.width/b.width,(e.clientY-b.top)*cv.height/b.height]};
+ let st=null;
+ cv.onpointerdown=e=>{st={p:pos(e),c:[e.clientX,e.clientY]};if(CT.mode==='rect'){cv.setPointerCapture(e.pointerId);CT.rect={x:st.p[0],y:st.p[1],w:0,h:0};draw()}};
+ cv.onpointermove=e=>{if(!st||CT.mode!=='rect')return;const q=pos(e);CT.rect={x:Math.min(st.p[0],q[0]),y:Math.min(st.p[1],q[1]),w:Math.abs(q[0]-st.p[0]),h:Math.abs(q[1]-st.p[1])};draw()};
+ cv.onpointerup=e=>{if(!st)return;const moved=Math.hypot(e.clientX-st.c[0],e.clientY-st.c[1]);const q=pos(e);
+  if(CT.mode==='rect'){st=null;if(CT.rect.w<10||CT.rect.h<10){CT.rect=null;draw();return}CT.mode='tap';runAuto();return}
+  st=null;if(moved>12)return;if(q[1]>CT.h)return;
+  const r=Math.max(CT.w,CT.h)/55;const k=CT.marks.findIndex(m=>Math.hypot(m[0]-q[0],m[1]-q[1])<r*1.1);
+  if(k>=0)CT.marks.splice(k,1);else CT.marks.push([Math.round(q[0]),Math.round(q[1])]);draw()};
+ ov.querySelector('#auto').onclick=()=>{CT.mode='rect';CT.rect=null;CT.redraw()};
+ ov.querySelector('#zm').onclick=e=>{CT.zoom=CT.zoom>=3?1:CT.zoom+1;e.target.textContent=CT.zoom>=3?'縮小':'拡大';draw()};
+ ov.querySelector('#clr').onclick=()=>{if(CT.marks.length&&!confirm('印を全部消しますか？'))return;CT.marks=[];CT.ncc=null;CT.rect=null;CT.redraw()};
+ ov.querySelector('#fin').onclick=()=>{p.marks=CT.marks.map(m=>[Math.round(m[0]),Math.round(m[1]),m[2]?1:0]);if(DRAFT)DRAFT.typed=false;ov.remove();const d=CT.done;CT=null;d&&d()};
+ CT.redraw()}
+
+function runAuto(){const r=CT.rect;const h=$('#hint');h.textContent='かぞえています…';
+ setTimeout(()=>{const W=CT.w,H=CT.h;let s=24/Math.max(r.w,r.h);const maxPix=640*640;if(W*s*H*s>maxPix)s=Math.sqrt(maxPix/(W*H));
+  const sw=Math.max(8,Math.round(W*s)),sh=Math.max(8,Math.round(H*s));
+  const c=document.createElement('canvas');c.width=sw;c.height=sh;const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(CT.bmp,0,0,W,H,0,0,sw,sh);
+  const px=x.getImageData(0,0,sw,sh).data;const I=new Float32Array(sw*sh);for(let i=0;i<sw*sh;i++)I[i]=.299*px[i*4]+.587*px[i*4+1]+.114*px[i*4+2];
+  const tx=Math.round(r.x*s),ty=Math.round(r.y*s),tw=Math.max(4,Math.min(sw-tx,Math.round(r.w*s))),th=Math.max(4,Math.min(sh-ty,Math.round(r.h*s)));
+  const n=tw*th;const T=new Float32Array(n);let mean=0;for(let v=0;v<th;v++)for(let u=0;u<tw;u++){const a=I[(ty+v)*sw+tx+u];T[v*tw+u]=a;mean+=a}mean/=n;
+  let tn=0;for(let k=0;k<n;k++){T[k]-=mean;tn+=T[k]*T[k]}tn=Math.sqrt(tn);
+  if(tn<1){CT.rect=null;CT.redraw();h.textContent='囲んだところに模様が無く、比べられません。袋の縁や文字が入るように囲み直してください。';return}
+  const S=new Float64Array((sw+1)*(sh+1)),S2=new Float64Array((sw+1)*(sh+1));
+  for(let y=0;y<sh;y++){let a=0,b=0;for(let xx=0;xx<sw;xx++){const v=I[y*sw+xx];a+=v;b+=v*v;S[(y+1)*(sw+1)+xx+1]=S[y*(sw+1)+xx+1]+a;S2[(y+1)*(sw+1)+xx+1]=S2[y*(sw+1)+xx+1]+b}}
+  const ow=sw-tw+1,oh=sh-th+1;const step=ow*oh*n>6e7?2:1;const R=new Float32Array(ow*oh).fill(-1);
+  for(let y=0;y<oh;y+=step)for(let xx=0;xx<ow;xx+=step){
+   const i0=y*(sw+1)+xx,i1=y*(sw+1)+xx+tw,i2=(y+th)*(sw+1)+xx,i3=(y+th)*(sw+1)+xx+tw;
+   const sm=S[i3]-S[i1]-S[i2]+S[i0],sq=S2[i3]-S2[i1]-S2[i2]+S2[i0];const vr=sq-sm*sm/n;if(vr<1e-3)continue;
+   let num=0;for(let v=0;v<th;v++){const ro=(y+v)*sw+xx,to=v*tw;for(let u=0;u<tw;u++)num+=T[to+u]*I[ro+u]}
+   R[y*ow+xx]=num/(tn*Math.sqrt(vr))}
+  CT.ncc={R,ow,oh,step,tw,th,s};pick();CT.rect=null;CT.redraw()},40)}
+function pick(){const{R,ow,oh,step,tw,th,s}=CT.ncc;const thr=CT.thr/100;const cand=[];
+ for(let y=0;y<oh;y+=step)for(let x=0;x<ow;x+=step){const v=R[y*ow+x];if(v>=thr)cand.push([v,x,y])}
+ cand.sort((a,b)=>b[0]-a[0]);if(cand.length>30000)cand.length=30000;const keep=[];
+ for(const c of cand){if(keep.every(k=>Math.abs(k[1]-c[1])>=tw*.6||Math.abs(k[2]-c[2])>=th*.6))keep.push(c);if(keep.length>=400)break}
+ const manual=CT.marks.filter(m=>!m[2]);
+ CT.marks=[...keep.map(k=>[Math.round((k[1]+tw/2)/s),Math.round((k[2]+th/2)/s),1]),...manual]}
+
+/* ===== データの画面 ===== */
+function viewData(){setHead('データ','設定・書き出し・バックアップ');const D=DC;
+ app.innerHTML=`<h2>担当とプラン</h2><div class="card">
+  <label class="f">担当の名前（写真の帯と記録に入る）</label><input id="who" value="${esc(db.cfg.who||'')}">
+  <label class="f">成雌の給餌プランの1日量（kg/頭/日。タンクの計算に使う）</label>
+  <div class="inrow">${['A','B','C'].map(L=>`<span>${L}</span><input data-pk="${L}" inputmode="decimal" value="${db.cfg.planKg[L]??''}">`).join('')}</div>
+  <p class="note">台帳アプリ：${D?`${D.cows.length}頭（在籍で居場所あり）を読めています。読むだけで書きかえません。`:'<span class="red">データが見つかりません</span>（同じスマホのChromeで台帳アプリにデータを入れると読めます）'}</p></div>
+ <h2>注文のグループ</h2>${db.grps.map(g=>`<div class="card" style="margin-bottom:8px"><h3>${esc(g.name)}</h3>
+  <div class="rule"><label class="small">次の納品日<input type="date" data-g="${g.id}" data-f="next" value="${g.next||''}"></label>
+  <label class="small">納品の間隔（日）<input data-g="${g.id}" data-f="interval" inputmode="numeric" value="${g.interval??''}"></label>
+  <label class="small">締切は納品の何日前<input data-g="${g.id}" data-f="lead" inputmode="numeric" value="${g.lead??''}"></label>
+  <label class="small">注文の単位（${esc(db.items.find(i=>i.grp===g.id)?.unit||'')}）<input data-g="${g.id}" data-f="unit" inputmode="decimal" value="${g.unit??''}"></label>
+  <label class="small">予備（何日分）<input data-g="${g.id}" data-f="safety" inputmode="decimal" value="${g.safety??''}"></label>
+  <label class="small">グループの名前<input data-g="${g.id}" data-f="name" value="${esc(g.name)}"></label></div>
+  ${(g.orders||[]).length?`<p class="small" style="margin-bottom:0">注文の記録：</p>${g.orders.slice().sort((a,b)=>b.dd.localeCompare(a.dd)).slice(0,8).map(o=>`<div class="inrow small" style="justify-content:space-between">納品 ${o.dd}　${nf(o.qty)}${o.memo?' ・'+esc(o.memo):''}<button class="btn sm" data-delo="${g.id}|${o.id}">消す</button></div>`).join('')}`:''}</div>`).join('')}
+ <div class="btns"><button class="btn" id="addG">グループを足す</button><button class="btn" id="addI">品目を足す</button></div>
+ <h2>書き出し</h2><div class="btns"><button class="btn pri" id="csv">チェックのCSV（牛舎マップに貼る用）</button><button class="btn" id="ocsv">注文のCSV</button><button class="btn" id="zip">写真をZIPで（数えた印つき）</button></div>
+ <h2>バックアップ</h2><div class="btns"><button class="btn" id="bk">バックアップ（JSON・写真は入らない）</button><button class="btn" id="rs">バックアップから戻す</button></div><input type="file" id="rf" accept=".json,application/json" hidden>
+ <h2>写真の保存場所</h2><div class="card"><p id="stor" class="small">しらべています…</p>
+  <div class="inrow"><span>この日数より古い写真を消す</span><input id="oldd" inputmode="numeric" value="180" style="max-width:90px"><button class="btn sm warn" id="delold">消す</button></div>
+  <p class="note">消すのは写真だけで、数・日時の記録は残ります。先に「写真をZIPで」で職場PCへ保存してから。</p></div>
+ <h2>はじめから</h2><div class="btns"><button class="btn warn" id="wipe">全部消す（写真も）</button><button class="btn" id="def">品目を初期値に戻す（記録は残す）</button></div>
+ <p class="note">版：zaiko v1 ・データはこのスマホのChromeの中だけ（GitHubには上がりません）。</p>`;
+ $('#who').onchange=e=>{db.cfg.who=e.target.value.trim();save()};
+ app.querySelectorAll('[data-pk]').forEach(e=>e.onchange=()=>{db.cfg.planKg[e.dataset.pk]=numOr(e.value);save()});
+ app.querySelectorAll('[data-g]').forEach(e=>e.onchange=()=>{const g=grpOf(e.dataset.g);const f=e.dataset.f;g[f]=(f==='next'||f==='name')?e.value:numOr(e.value);save();toast('保存しました')});
+ app.querySelectorAll('[data-delo]').forEach(b=>b.onclick=()=>{const[gid,oid]=b.dataset.delo.split('|');const g=grpOf(gid);if(!confirm('この注文の記録を消しますか？'))return;g.orders=g.orders.filter(o=>o.id!==oid);save();viewData()});
+ $('#addG').onclick=()=>{const n=prompt('グループの名前（例：成雌の袋もの）');if(!n)return;db.grps.push({id:uid(),name:n,unit:1,interval:7,lead:7,next:'',safety:2,orders:[]});save();viewData()};
+ $('#addI').onclick=()=>{const n=prompt('品目の名前（例：ミネラル塩）');if(!n)return;const u=confirm('袋・箱など「個数」で数えますか？\n（OK＝袋、キャンセル＝kg）')?'袋':'kg';
+  const gid=uid();db.grps.push({id:gid,name:n,unit:1,interval:7,lead:7,next:'',safety:2,orders:[]});const id=uid();db.items.push({id,name:n,feed:'',kind:u==='袋'?'bag':'tank',unit:u,kgPer:null,cap:null,grp:gid,active:true,every:7,needPhoto:true,useMode:'manual',manual:null,rules:[],note:''});save();location.hash='#i-'+id};
+ $('#csv').onclick=()=>{const rows=[['日時','品目','飼料','残量','単位','写真で数えた数','写真の枚数','担当','メモ']];
+  for(const c of db.checks.slice().sort((a,b)=>a.at-b.at)){const it=itemOf(c.item)||{name:c.item,unit:''};rows.push([dt(c.at),it.name,it.feed||'',c.val,it.unit,(c.photos||[]).some(p=>p.marks?.length)?c.photos.reduce((a,p)=>a+(p.marks?.length||0),0):'',(c.photos||[]).length,c.who||'',c.memo||''])}
+  dl(csv(rows),`zaiko-checks-${ymd(Date.now())}.csv`,'text/csv')};
+ $('#ocsv').onclick=()=>{const rows=[['記録日','グループ','納品日','量','単位','メモ']];for(const g of db.grps)for(const o of g.orders||[])rows.push([o.on,g.name,o.dd,o.qty,db.items.find(i=>i.grp===g.id)?.unit||'',o.memo||'']);dl(csv(rows),`zaiko-orders-${ymd(Date.now())}.csv`,'text/csv')};
+ $('#zip').onclick=async()=>{const b=$('#zip');b.disabled=true;b.textContent='作っています…';try{const files=[];
+  for(const c of db.checks.slice().sort((a,b)=>a.at-b.at)){const it=itemOf(c.item)||{name:c.item,unit:''};let k=0;
+   for(const p of c.photos||[]){k++;const cv=await drawMarked(p);if(!cv)continue;const bl=await new Promise(r=>cv.toBlob(r,'image/jpeg',.85));
+    files.push({name:`${ymd(c.at)}_${hm(c.at).replace(':','')}_${it.name.replace(/[\\/:*?"<>|\s（）()]/g,'')}_${c.val}${it.unit}_${k}.jpg`,data:new Uint8Array(await bl.arrayBuffer()),date:new Date(c.at)})}}
+  if(!files.length){alert('写真がありません');return}
+  dl(makeZip(files),`zaiko-photos-${ymd(Date.now())}.zip`,'application/zip')}finally{b.disabled=false;b.textContent='写真をZIPで（数えた印つき）'}};
+ $('#bk').onclick=()=>dl(JSON.stringify({...db,meta:{app:'zaiko',v:1,at:dt(Date.now())}}),`zaiko-backup-${ymd(Date.now())}.json`,'application/json');
+ $('#rs').onclick=()=>{const f=$('#rf');f.value='';f.onchange=async()=>{try{const d=JSON.parse(await f.files[0].text());if(!d.items||!d.checks)throw new Error('在庫アプリのバックアップではありません');
+   if(!confirm(`今のデータを入れかえます（チェック ${d.checks.length}件）。よいですか？`))return;delete d.meta;db=d;save();toast('戻しました');viewData()}catch(e){alert('読めませんでした：'+e.message)}};f.click()};
+ (async()=>{let t='';try{const e=await navigator.storage.estimate();t=`使っている量 約${(e.usage/1048576).toFixed(1)}MB ／ 使える量 約${(e.quota/1048576/1024).toFixed(1)}GB`}catch(e){}
+  const ks=await pKeys().catch(()=>[]);const pers=navigator.storage?.persisted?await navigator.storage.persisted():false;
+  $('#stor').textContent=`写真 ${ks.length}枚。${t}。${pers?'消されにくい設定になっています。':'（ブラウザが空き容量のために消すことがあります。ホーム画面に追加して使うと消されにくい）'}`})();
+ $('#delold').onclick=async()=>{const n=numOr($('#oldd').value);if(n==null)return;const lim=Date.now()-n*DAY;const tg=[];for(const c of db.checks)if(c.at<lim)for(const p of c.photos||[])tg.push(p.pid);
+  if(!tg.length)return alert('対象の写真はありません');if(!confirm(`${n}日より古い写真 ${tg.length}枚を消します。元に戻せません。よいですか？`))return;for(const pid of tg)await pDel(pid).catch(()=>{});toast(`${tg.length}枚消しました`);viewData()};
+ $('#wipe').onclick=async()=>{if(!confirm('チェックの記録・注文の記録・写真・設定を全部消します。元に戻せません。'))return;if(!confirm('本当に消しますか？'))return;
+  const ks=await pKeys().catch(()=>[]);for(const k of ks)await pDel(k).catch(()=>{});localStorage.removeItem(KEY);load();toast('消しました');location.hash='#home'};
+ $('#def').onclick=()=>{if(!confirm('品目・グループの設定を初期値に戻します（チェックと注文の記録は残ります）'))return;const d=defaults();const old=db.grps;d.grps.forEach(g=>{const o=old.find(x=>x.id===g.id);if(o){g.orders=o.orders;g.next=o.next}});db.items=d.items;db.grps=d.grps;save();toast('戻しました');viewData()}}
+
+function csv(rows){return'﻿'+rows.map(r=>r.map(v=>{v=String(v??'');return/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\r\n')}
+function dl(data,name,type){const b=data instanceof Blob?data:new Blob([data],{type:type+';charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
+/* ZIP（圧縮なし。写真はもともと圧縮済み） */
+const CRC=(()=>{const t=new Uint32Array(256);for(let n=0;n<256;n++){let c=n;for(let k=0;k<8;k++)c=c&1?0xEDB88320^(c>>>1):c>>>1;t[n]=c>>>0}return t})();
+function crc32(u){let c=0xFFFFFFFF;for(let i=0;i<u.length;i++)c=CRC[(c^u[i])&255]^(c>>>8);return(c^0xFFFFFFFF)>>>0}
+function makeZip(files){const enc=new TextEncoder();const parts=[],cen=[];let off=0;
+ for(const f of files){const nm=enc.encode(f.name);const crc=crc32(f.data);const d=f.date||new Date();const tm=(d.getHours()<<11)|(d.getMinutes()<<5)|(d.getSeconds()>>1),dd=((d.getFullYear()-1980)<<9)|((d.getMonth()+1)<<5)|d.getDate();
+  const h=new DataView(new ArrayBuffer(30));h.setUint32(0,0x04034b50,true);h.setUint16(4,20,true);h.setUint16(6,0x0800,true);h.setUint16(10,tm,true);h.setUint16(12,dd,true);h.setUint32(14,crc,true);h.setUint32(18,f.data.length,true);h.setUint32(22,f.data.length,true);h.setUint16(26,nm.length,true);
+  parts.push(h.buffer,nm,f.data);
+  const c=new DataView(new ArrayBuffer(46));c.setUint32(0,0x02014b50,true);c.setUint16(4,20,true);c.setUint16(6,20,true);c.setUint16(8,0x0800,true);c.setUint16(12,tm,true);c.setUint16(14,dd,true);c.setUint32(16,crc,true);c.setUint32(20,f.data.length,true);c.setUint32(24,f.data.length,true);c.setUint16(28,nm.length,true);c.setUint32(42,off,true);
+  cen.push(c.buffer,nm);off+=30+nm.length+f.data.length}
+ const cs=cen.reduce((a,b)=>a+b.byteLength,0);const e=new DataView(new ArrayBuffer(22));e.setUint32(0,0x06054b50,true);e.setUint16(8,files.length,true);e.setUint16(10,files.length,true);e.setUint32(12,cs,true);e.setUint32(16,off,true);
+ return new Blob([...parts,...cen,e.buffer],{type:'application/zip'})}
+
+route();
+if('serviceWorker'in navigator&&location.protocol==='https:')navigator.serviceWorker.register('sw.js');
+</script></body></html>
