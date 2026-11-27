@@ -92,6 +92,7 @@ pre.memo{white-space:pre-wrap;background:var(--card);border:1px solid var(--line
 <header><div class="hrow"><h1 id="ttl">在庫チェック<small id="sub"></small></h1><a href="#home" id="hb">一覧</a><a href="#order">注文メモ</a><a href="#data">データ</a></div></header>
 <main id="app"></main>
 <input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<input type="file" id="lib" accept="image/*" multiple hidden>
 <input type="file" id="xf" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 <script>
 'use strict';
@@ -164,19 +165,31 @@ async function purl(pid){if(urlCache[pid])return urlCache[pid];const o=await pGe
 async function fillImgs(root=document){for(const im of root.querySelectorAll('img[data-pid]')){const u=await purl(im.dataset.pid);if(u)im.src=u;else{im.alt='（写真は消去済み）';im.style.background='#555'}}}
 
 /* 写真を撮る → 縮小 → 下に日時・品目・担当の帯を焼き込む（証拠用） */
-async function makePhoto(file,it){
+async function makePhoto(file,it,o={}){
  const bmp=await createImageBitmap(file);
  const M=1600,s=Math.min(1,M/Math.max(bmp.width,bmp.height));const w=Math.round(bmp.width*s),h=Math.round(bmp.height*s);
- const bh=Math.max(36,Math.round(w*0.045));
- const at=(file.lastModified&&Math.abs(Date.now()-file.lastModified)<15*60e3)?file.lastModified:Date.now();
+ const bh=o.noBand?0:Math.max(36,Math.round(w*0.045));
+ const at=o.picked&&file.lastModified?file.lastModified:(file.lastModified&&Math.abs(Date.now()-file.lastModified)<15*60e3)?file.lastModified:Date.now();
  const cv=document.createElement('canvas');cv.width=w;cv.height=h+bh;const x=cv.getContext('2d');
  x.drawImage(bmp,0,0,w,h);x.fillStyle='#23201b';x.fillRect(0,h,w,bh);
  x.fillStyle='#d9a441';x.font=`800 ${Math.round(bh*.5)}px "M PLUS 1p",sans-serif`;x.textBaseline='middle';
- x.fillText(`${dt(at)}  ${it.name}${db.cfg.who?'  '+db.cfg.who:''}`,Math.round(bh*.3),h+bh/2);
+ if(bh)x.fillText(`${dt(at)}  ${it.name}${db.cfg.who?'  '+db.cfg.who:''}${o.picked?'  ※あとから追加':''}`,Math.round(bh*.3),h+bh/2);
  const blob=await new Promise(r=>cv.toBlob(r,'image/jpeg',.8));
  const pid=uid();await pPut({pid,blob,w,h,at,item:it.id,saved:Date.now()});
  try{navigator.storage&&navigator.storage.persist&&navigator.storage.persist()}catch(e){}
  return{pid,w,h,at,marks:[]}}
+
+/* 写真の入れ方：撮る(cam)・選ぶ(lib)・貼り付け(paste)。PCではCtrl+Vでも貼れる */
+let PASTE=null;
+document.addEventListener('paste',e=>{if(!PASTE)return;const fs=[...(e.clipboardData?.files||[])].filter(f=>f.type.startsWith('image/'));if(fs.length){e.preventDefault();PASTE(fs,'paste')}});
+function getPhotos(mode){return new Promise(async res=>{
+ if(mode==='paste'){try{if(!navigator.clipboard?.read)throw new Error('このブラウザはボタンでの貼り付けに対応していません');const items=await navigator.clipboard.read();const fs=[];
+   for(const ci of items){const t=ci.types.find(x=>x.startsWith('image/'));if(t){const b=await ci.getType(t);fs.push(new File([b],'paste.png',{type:t}))}}
+   if(!fs.length)alert('コピーした写真がありません。写真を長押し →「コピー」してから押してください。');res(fs)}
+  catch(e){alert('貼り付けできませんでした（'+e.message+'）。「写真を選ぶ」を使ってください。');res([])}return}
+ const c=$(mode==='cam'?'#cam':'#lib');c.value='';c.onchange=()=>res([...c.files]);c.click()})}
+const photoBtns=(pre,big)=>`<div class="btns" style="margin-top:10px"><button class="btn ${big?'big ':''}kr" data-ph="${pre}|cam">📷 撮る</button><button class="btn" data-ph="${pre}|lib">🖼 写真を選ぶ</button><button class="btn" data-ph="${pre}|paste">📋 貼り付け</button></div>`;
+function wirePhotos(pre,add){app.querySelectorAll(`[data-ph^="${pre}|"]`).forEach(b=>b.onclick=async()=>{const m=b.dataset.ph.split('|')[1];const fs=await getPhotos(m);if(fs.length)add(fs,m)});PASTE=add}
 
 /* ===== 台帳アプリのデータを読む（読むだけ。書き込まない） ===== */
 function daicho(){try{const d=JSON.parse(localStorage.getItem(DKEY)||'null');if(!d||!d.cows)return null;
@@ -278,7 +291,7 @@ function warnings(){const W=[];const now=Date.now();
 /* ===== 画面 ===== */
 const app=$('#app');
 function setHead(t,s){$('#ttl').firstChild.textContent=t;$('#sub').textContent=s||''}
-function route(){const h=decodeURIComponent(location.hash.slice(1)||'home');DC=daicho();window.scrollTo(0,0);
+function route(){PASTE=null;const h=decodeURIComponent(location.hash.slice(1)||'home');DC=daicho();window.scrollTo(0,0);
  if(h.startsWith('i-'))return viewItem(h.slice(2));
  if(h.startsWith('chk-'))return viewCheck(h.slice(4));
  if(h==='data')return viewData();
@@ -310,7 +323,7 @@ function grpCard(g){const s=grpState(g);if(!s)return'';const u=s.unit;
  h+=`<p class="note">目安です。注文の判断と正本は Excel の牛舎マップ。</p></div>`;return h}
 
 function simpleRow(it){const s=sState(it);
- return `<div class="row"><a href="#i-${it.id}" style="flex:1;display:flex;gap:10px;align-items:center;color:inherit;text-decoration:none"><span class="t"><b>${esc(it.name)}</b><br>${[it.loc,it.vendor].filter(Boolean).map(esc).join(' ・')}${s.l?` ・${ago(s.l.at)}`:''}${s.toNext!=null?` ・目安 ${md(s.next)}`:''}</span>
+ return `<div class="row"><a href="#i-${it.id}" style="flex:1;display:flex;gap:10px;align-items:center;color:inherit;text-decoration:none">${it.pic?`<img data-pid="${it.pic.pid}" alt="" style="width:46px;height:46px;object-fit:cover;border-radius:8px;flex:none;background:var(--line)">`:''}<span class="t"><b>${esc(it.name)}</b><br>${[it.loc,it.vendor].filter(Boolean).map(esc).join(' ・')}${s.l?` ・${ago(s.l.at)}`:''}${s.toNext!=null?` ・目安 ${md(s.next)}`:''}</span>
  <span class="v">${s.stock!=null?`<b>${nf(s.stock,'袋')}<small style="font-size:12px"> ${esc(it.unit)}</small></b>`:'—'}${s.exp?`期限 ${md(s.exp)}`:''}</span></a>
  <span class="st ${s.chip[0]}">${s.chip[1]}</span><a class="btn sm kr" href="#chk-${it.id}">数える</a></div>`}
 function simpleList(its){const by={};for(const it of its){const k=it.sub||CATS[catOf(it)];(by[k]=by[k]||[]).push(it)}
@@ -334,6 +347,7 @@ function viewHome(){setHead('在庫チェック',md(Date.now()));const tab=db.cf
  ${!db.items.some(isSimple)?`<div class="card" style="margin-top:14px"><h3>雑貨・薬品がまだありません</h3><p class="small">「データ」→「牛舎マップから取り込む」で、牛舎マップ（Excel）の「定期発注品」の品目（手袋・注射針・薬など）がまとめて入ります。1つずつ足すこともできます。</p><a class="btn pri" href="#data">データへ</a></div>`:''}
  ${off.length?`<details><summary>使っていない品目（${off.length}）</summary><div class="list">${off.map(it=>`<a class="row" href="#i-${it.id}"><span class="t"><b>${esc(it.name)}</b><br>${esc(it.note||'')}</span><span class="st no">休止</span></a>`).join('')}</div></details>`:''}
  ${DC||!showFeed?'':'<p class="note">台帳アプリのデータが見つかりません。頭数からの計算は使えず、入力した1日量か実測で目安を出します。</p>'}`;
+ fillImgs(app);
  app.querySelectorAll('[data-tab]').forEach(a=>a.onclick=e=>{e.preventDefault();db.cfg.tab=a.dataset.tab;save();viewHome()});
  app.querySelectorAll('[data-ord]').forEach(b=>b.onclick=()=>orderModal(grpOf(b.dataset.ord)))}
 
@@ -407,6 +421,9 @@ function viewItem(id){const it=itemOf(id);if(!it)return viewHome();if(isSimple(i
 function viewSimple(it){const id=it.id;setHead(it.name,[CATS[catOf(it)],it.sub].filter(Boolean).join('・'));const s=sState(it);const cs=checksOf(id).reverse();
  const ords=(it.orders||[]).slice().sort((a,b)=>b.on.localeCompare(a.on));
  app.innerHTML=`<a class="btn big kr" href="#chk-${id}">数える（在庫を記録）</a>
+ <div class="card" style="margin-top:12px"><h3>見本の写真 <span class="small">（どれのことか分かるように。箱・ラベル・置き場所）</span></h3>
+  ${it.pic?`<img data-pid="${it.pic.pid}" id="pic" alt="" style="display:block;width:100%;max-height:260px;object-fit:contain;border-radius:10px;background:#000;cursor:pointer">`:'<p class="small">まだありません</p>'}
+  ${photoBtns('pic')}${it.pic?'<div class="btns" style="margin-top:6px"><button class="btn sm warn" id="picDel">見本の写真を消す</button></div>':''}</div>
  <div class="card" style="margin-top:12px"><div class="adv">${s.stock!=null?`${nf(s.stock,'袋')} ${esc(it.unit)}`:'まだ数えていません'} <span class="st ${s.chip[0]}" style="vertical-align:middle">${s.chip[1]}</span></div>
   <dl class="facts">${s.l?`<dt>数えた日</dt><dd>${dt(s.l.at)}${s.l.who?' ・'+esc(s.l.who):''}</dd>`:''}${s.exp?`<dt>使用期限</dt><dd class="${s.toExp<=30?'red':''}">${md(s.exp)}${s.l.lot?' ・ロット '+esc(s.l.lot):''}</dd>`:''}
   <dt>発注先</dt><dd>${esc(it.vendor||'—')}</dd><dt>いつもの量</dt><dd>${it.usual!=null?nf(it.usual,'袋')+' '+esc(it.unit):'—'}</dd>
@@ -439,6 +456,9 @@ function viewSimple(it){const id=it.id;setHead(it.name,[CATS[catOf(it)],it.sub].
   <div class="btns" style="margin-top:14px"><button class="btn pri" id="sv">設定を保存</button><button class="btn warn" id="delI">この品目を消す</button></div>
  </div></details>`;
  $('#s_cat').value=catOf(it);$('#s_ph').checked=!!it.needPhoto;$('#s_act').checked=!!it.active;
+ wirePhotos('pic',async fs=>{try{const p=await makePhoto(fs[0],it,{noBand:true});if(it.pic)await pDel(it.pic.pid).catch(()=>{});it.pic={pid:p.pid,w:p.w,h:p.h};save();toast('見本の写真を入れました');viewSimple(it)}catch(e){alert('写真を読めませんでした：'+e.message)}});
+ const pic=$('#pic');if(pic)pic.onclick=()=>viewOne({...it.pic,marks:[]});
+ const pd2=$('#picDel');if(pd2)pd2.onclick=async()=>{if(!confirm('見本の写真を消しますか？'))return;await pDel(it.pic.pid).catch(()=>{});it.pic=null;save();viewSimple(it)};
  $('#ord').onclick=()=>sOrderModal(it);const g=$('#got');if(g)g.onclick=()=>gotModal(it);
  $('#sv').onclick=()=>{Object.assign(it,{name:$('#s_name').value.trim()||it.name,cat:$('#s_cat').value,sub:$('#s_sub').value.trim(),unit:$('#s_unit').value.trim()||'個',vendor:$('#s_ven').value.trim(),usual:numOr($('#s_us').value),ivl:numOr($('#s_iv').value),lastOrd:$('#s_lo').value,min:numOr($('#s_min').value),every:numOr($('#s_ev').value),lead:numOr($('#s_ld').value),loc:$('#s_loc').value.trim(),xl:$('#s_xl').value.trim(),needPhoto:$('#s_ph').checked,active:$('#s_act').checked,note:$('#s_note').value});save();toast('保存しました');viewSimple(it)};
  $('#delI').onclick=()=>{if(confirm(`「${it.name}」を消しますか？（数えた記録は残ります）`)){db.items=db.items.filter(x=>x!==it);save();location.hash='#home'}};
@@ -496,10 +516,10 @@ function viewCheck(id){const it=itemOf(id);if(!it)return viewHome();
  if(!DRAFT||DRAFT.item!==id){dropDraft();const l0=lastOf(id);DRAFT={item:id,photos:[],val:'',memo:'',typed:false,exp:l0?.exp||'',lot:l0?.lot||''}}
  setHead('チェック：'+it.name,it.feed);const l=lastOf(id);const sum=DRAFT.photos.reduce((a,p)=>a+(p.marks?.length||0),0);const counted=DRAFT.photos.some(p=>p.marks?.length);
  if(counted&&!DRAFT.typed)DRAFT.val=String(sum);
- app.innerHTML=`<div class="card"><h3>1. 写真を撮る${it.needPhoto?'<span class="red">（必須）</span>':'<span class="small">（なくてもよい）</span>'}</h3>
+ app.innerHTML=`<div class="card"><h3>1. 写真${it.needPhoto?'<span class="red">（必須）</span>':'<span class="small">（なくてもよい）</span>'}</h3>
   <p class="small">${SIM?'棚・箱の数がわかるように。袋が多いときは写真の上でタップして数えられる。':it.unit==='袋'?'袋の山が全部入るように。2か所にあるときは2枚に分けて撮る。':'タンクの目盛り・のぞき窓の残りの高さがわかるように。'}</p>
   <div class="thumbs">${DRAFT.photos.map((p,k)=>`<div class="th"><img data-pid="${p.pid}" data-k="${k}" alt="">${p.marks?.length?`<span class="cnt">${p.marks.length}</span>`:''}<button data-cnt="${k}">${it.unit!=='kg'?'数える':'見る'}</button><button data-rmp="${k}">消す</button></div>`).join('')}</div>
-  <div class="btns" style="margin-top:10px"><button class="btn big kr" id="shot">📷 写真を撮る</button></div></div>
+  ${photoBtns('chk',true)}<p class="note">写真を選ぶ＝スマホに保存してある写真。貼り付け＝LINEなどで写真を長押し→コピーしたもの（PCならCtrl+V）。あとから入れた写真には帯に「※あとから追加」と入ります。</p></div>
  <div class="card" style="margin-top:12px"><h3>2. 残りの量</h3>
   ${counted?`<p class="small">写真で数えた合計：<b>${sum} 袋</b>（直したときは下の数を書きかえる）</p>`:''}
   ${(it.lv||[]).length?`<p class="small" style="margin:4px 0">窓の目印から選ぶ（間なら数を直す）：</p><div class="btns" style="margin-bottom:8px">${it.lv.map((m,k)=>`<button class="btn sm${DRAFT.lvl===m.label?' pri':''}" data-lv="${k}">${esc(m.label)}<br>${nf(m.kg)}kg</button>`).join('')}</div>`:''}
@@ -522,8 +542,9 @@ function viewCheck(id){const it=itemOf(id);if(!it)return viewHome();
   if(MED){$('#exp').onchange=e=>DRAFT.exp=e.target.value;$('#lot').oninput=e=>DRAFT.lot=e.target.value}}
  app.querySelectorAll('[data-lv]').forEach(b=>b.onclick=()=>{const m=it.lv[b.dataset.lv];DRAFT.lvl=m.label;DRAFT.val=String(m.kg);DRAFT.typed=true;viewCheck(id)});
  $('#val').addEventListener('input',()=>{const m=(it.lv||[]).find(x=>x.label===DRAFT.lvl);if(m&&numOr(DRAFT.val)!==m.kg)DRAFT.lvl=''});
- $('#shot').onclick=()=>{const c=$('#cam');c.value='';c.onchange=async()=>{const f=c.files[0];if(!f)return;toast('写真を保存しています…');
-   try{const p=await makePhoto(f,it);DRAFT.photos.push(p);viewCheck(id);if(it.unit!=='kg')openCount(p,()=>viewCheck(id))}catch(e){alert('写真を読めませんでした：'+e.message)}};c.click()};
+ wirePhotos('chk',async(fs,m)=>{toast('写真を保存しています…');let last=null;
+   for(const f of fs){try{last=await makePhoto(f,it,{picked:m!=='cam'});DRAFT.photos.push(last)}catch(e){alert('写真を読めませんでした：'+e.message)}}
+   viewCheck(id);if(last&&fs.length===1&&it.unit!=='kg')openCount(last,()=>viewCheck(id))});
  app.querySelectorAll('[data-cnt]').forEach(b=>b.onclick=()=>{const p=DRAFT.photos[b.dataset.cnt];if(it.unit!=='kg')openCount(p,()=>viewCheck(id));else viewOne(p)});
  app.querySelectorAll('.th img').forEach(im=>im.onclick=()=>viewOne(DRAFT.photos[im.dataset.k]));
  app.querySelectorAll('[data-rmp]').forEach(b=>b.onclick=async()=>{const p=DRAFT.photos.splice(b.dataset.rmp,1)[0];await pDel(p.pid).catch(()=>{});viewCheck(id)});
@@ -632,7 +653,7 @@ function viewData(){setHead('データ','牛舎マップとつなぐ・設定・
   <div class="inrow"><span>この日数より古い写真を消す</span><input id="oldd" inputmode="numeric" value="180" style="max-width:90px"><button class="btn sm warn" id="delold">消す</button></div>
   <p class="note">消すのは写真だけで、数・日時の記録は残ります。先に「写真をZIPで」で職場PCへ保存してから。</p></div>
  <h2>はじめから</h2><div class="btns"><button class="btn warn" id="wipe">全部消す（写真も）</button><button class="btn" id="def">品目を初期値に戻す（記録は残す）</button></div>
- <p class="note">版：zaiko v3 ・データはこのスマホのChromeの中だけ（GitHubには上がりません）。</p>`;
+ <p class="note">版：zaiko v4 ・データはこのスマホのChromeの中だけ（GitHubには上がりません）。</p>`;
  $('#who').onchange=e=>{db.cfg.who=e.target.value.trim();save()};
  app.querySelectorAll('[data-pk]').forEach(e=>e.onchange=()=>{db.cfg.planKg[e.dataset.pk]=numOr(e.value);save()});
  app.querySelectorAll('[data-g]').forEach(e=>e.onchange=()=>{const g=grpOf(e.dataset.g);const f=e.dataset.f;g[f]=(f==='next'||f==='name')?e.value:numOr(e.value);save();toast('保存しました')});
@@ -650,7 +671,7 @@ function viewData(){setHead('データ','牛舎マップとつなぐ・設定・
     files.push({name:`${ymd(c.at)}_${hm(c.at).replace(':','')}_${it.name.replace(/[\\/:*?"<>|\s（）()]/g,'')}_${c.val}${it.unit}_${k}.jpg`,data:new Uint8Array(await bl.arrayBuffer()),date:new Date(c.at)})}}
   if(!files.length){alert('写真がありません');return}
   dl(makeZip(files),`zaiko-photos-${ymd(Date.now())}.zip`,'application/zip')}finally{b.disabled=false;b.textContent='写真をZIPで（数えた印つき）'}};
- $('#bk').onclick=()=>dl(JSON.stringify({...db,meta:{app:'zaiko',v:3,at:dt(Date.now())}}),`zaiko-backup-${ymd(Date.now())}.json`,'application/json');
+ $('#bk').onclick=()=>dl(JSON.stringify({...db,meta:{app:'zaiko',v:4,at:dt(Date.now())}}),`zaiko-backup-${ymd(Date.now())}.json`,'application/json');
  $('#rs').onclick=()=>{const f=$('#rf');f.value='';f.onchange=async()=>{try{const d=JSON.parse(await f.files[0].text());if(!d.items||!d.checks)throw new Error('在庫アプリのバックアップではありません');
    if(!confirm(`今のデータを入れかえます（チェック ${d.checks.length}件）。よいですか？`))return;delete d.meta;db=d;fixup();save();toast('戻しました');viewData()}catch(e){alert('読めませんでした：'+e.message)}};f.click()};
  (async()=>{let t='';try{const e=await navigator.storage.estimate();t=`使っている量 約${(e.usage/1048576).toFixed(1)}MB ／ 使える量 約${(e.quota/1048576/1024).toFixed(1)}GB`}catch(e){}
