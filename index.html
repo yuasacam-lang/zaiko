@@ -80,11 +80,19 @@ table.calc{width:100%;border-collapse:collapse;font-size:14px}table.calc td{padd
 .ovhint input[type=range]{width:100%;min-height:30px;padding:0}
 .modal{position:fixed;inset:0;background:rgb(0 0 0/.5);z-index:40;display:flex;align-items:flex-end;justify-content:center}
 .modal .card{width:min(760px,100%);border-radius:18px 18px 0 0;padding:18px 16px 26px;max-height:92vh;overflow:auto}
+.tabs{display:flex;gap:6px;margin:4px 0 2px;position:sticky;top:0;z-index:5;background:var(--bg);padding:6px 0}
+.tabs a{flex:1;text-align:center;font:800 16px/1 "M PLUS 1p",sans-serif;padding:13px 4px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--ink);text-decoration:none}
+.tabs a.on{background:var(--head);color:#f3efe6;border-color:transparent}
+.st.wa{background:light-dark(#fbe7c2,#4a3613);color:light-dark(#7a4b00,#f2c66d)}.st.bl{background:light-dark(#dde6f3,#1d2a3c);color:light-dark(#2b4f80,#9cbbe6)}
+.sub{font:700 14px/1.3 "Noto Sans JP",sans-serif;color:var(--mute);margin:14px 2px 4px}
+.step{display:flex;gap:8px;align-items:center}.step .btn{min-width:56px;font-size:22px}
+pre.memo{white-space:pre-wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;font:15px/1.6 "Noto Sans JP",sans-serif;margin:0}
 .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:#23201b;color:#f3efe6;padding:12px 18px;border-radius:24px;z-index:60;font-weight:700;box-shadow:0 4px 16px rgb(0 0 0/.3)}
 </style></head><body>
-<header><div class="hrow"><h1 id="ttl">在庫チェック<small id="sub"></small></h1><a href="#home" id="hb">一覧</a><a href="#data">データ</a></div></header>
+<header><div class="hrow"><h1 id="ttl">在庫チェック<small id="sub"></small></h1><a href="#home" id="hb">一覧</a><a href="#order">注文メモ</a><a href="#data">データ</a></div></header>
 <main id="app"></main>
 <input type="file" id="cam" accept="image/*" capture="environment" hidden>
+<input type="file" id="xf" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
 <script>
 'use strict';
 /* ===== 基本 ===== */
@@ -107,8 +115,8 @@ const numOr=(v,d=null)=>{if(v===''||v==null)return d;const n=Number(String(v).re
 /* ===== 初期の品目（数字は牛舎マップの引き継ぎ・相談で決まったもの。違えば「設定」で直す） ===== */
 function defaults(){return{v:1,
  items:[
-  {id:'s1',name:'成雌 1番タンク（東）',feed:'ベストクイーン',kind:'tank',unit:'kg',cap:2500,grp:'seishi',active:true,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'plan',barn:'成雌牛舎',pens:'A,B'}],note:'成雌A・B房'},
-  {id:'s2',name:'成雌 2番タンク（西）',feed:'ベストクイーン',kind:'tank',unit:'kg',cap:2500,grp:'seishi',active:true,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'plan',barn:'成雌牛舎',pens:'C,D'}],note:'成雌C・D房'},
+  {id:'s1',name:'成雌 1番タンク（東）',feed:'ベストクイーン',kind:'tank',unit:'kg',cap:2000,capNom:2000,capMax:2500,lv:[{label:'円筒の上の端（満タン・計算）',kg:2400},{label:'上の窓の下の端（前任の実績）',kg:1500},{label:'円すいと円筒のつなぎ目（計算）',kg:640},{label:'円すいの高さの半分（計算）',kg:80},{label:'空',kg:0}],grp:'seishi',active:true,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'plan',barn:'成雌牛舎',pens:'A,B'}],note:'成雌A・B房'},
+  {id:'s2',name:'成雌 2番タンク（西）',feed:'ベストクイーン',kind:'tank',unit:'kg',cap:2000,capNom:2000,capMax:2500,lv:[{label:'円筒の上の端（満タン・計算）',kg:2400},{label:'上の窓の下の端（前任の実績）',kg:1500},{label:'円すいと円筒のつなぎ目（計算）',kg:640},{label:'円すいの高さの半分（計算）',kg:80},{label:'空',kg:0}],grp:'seishi',active:true,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'plan',barn:'成雌牛舎',pens:'C,D'}],note:'成雌C・D房。1番と同じ型かは未確認（銘板で確かめる）'},
   {id:'sg',name:'総合タンク',feed:'北の匠育成K（バラ）',kind:'tank',unit:'kg',cap:3000,grp:'sogo',active:true,every:7,needPhoto:true,useMode:'calc',manual:82,rules:[{t:'head',barn:'総合牛舎',pens:'A,B,D,育成房',kg:4},{t:'head',barn:'総合牛舎',pens:'C',kg:4.48},{t:'head',barn:'黒毛ドナー牛舎',pens:'Di',kg:2}],note:'総合単房の2頭はタンクから食べない。ドナーDiはタルで運ぶ'},
   {id:'i1',name:'育成 ①東タンク',feed:'北の匠育成K（バラ）',kind:'tank',unit:'kg',cap:null,grp:'ikusei',active:false,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'head',barn:'育成牛舎',pens:'A,B',kg:null}],note:'育成A・B房。フィーダー完成（12月初め予定）から使う'},
   {id:'i2',name:'育成 ②西タンク',feed:'北の匠育成K（バラ）',kind:'tank',unit:'kg',cap:null,grp:'ikusei',active:false,every:7,needPhoto:true,useMode:'calc',manual:null,rules:[{t:'head',barn:'育成牛舎',pens:'C,D',kg:null}],note:'育成C・D房。フィーダー完成から使う'},
@@ -124,7 +132,18 @@ function defaults(){return{v:1,
  ],
  checks:[],cfg:{who:'',planKg:{A:null,B:null,C:null}}}}
 let db;
-function load(){try{db=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){db=null}if(!db||!db.items)db=defaults();db.checks??=[];db.cfg??={who:'',planKg:{}};db.cfg.planKg??={}}
+function load(){try{db=JSON.parse(localStorage.getItem(KEY)||'null')}catch(e){db=null}if(!db||!db.items)db=defaults();db.checks??=[];db.cfg??={who:'',planKg:{}};db.cfg.planKg??={};
+ if((db.v||1)<2){for(const id of['s1','s2']){const it=db.items.find(i=>i.id===id);if(it&&it.capMax==null){it.capNom=2000;it.capMax=2500;it.cap=2000;it.lv=it.lv||[{label:'円筒の上の端（満タン・計算）',kg:2400},{label:'上の窓の下の端（前任の実績）',kg:1500},{label:'円すいと円筒のつなぎ目（計算）',kg:640},{label:'円すいの高さの半分（計算）',kg:80},{label:'空',kg:0}]}}db.v=2;try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}}
+ fixup()}
+/* v3：餌・雑貨・薬品をまとめて。今までの品目は「餌」。牛舎マップの定期発注品の名前（xl）でつなぐ */
+const XLNAME={kb:'北の匠育成K（紙袋20kg）',mf:'ミルフードBフレーク（紙袋20kg）'};
+function fixup(){let ch=false;for(const it of db.items){if(!it.cat){it.cat='feed';ch=true}if(!it.kind)it.kind=it.unit==='袋'?'bag':'tank';if(it.xl==null&&XLNAME[it.id]){it.xl=XLNAME[it.id];ch=true}}
+ db.cfg.tab??='all';db.xlNext??=null;if((db.v||1)<3){db.v=3;ch=true}if(ch)try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){}}
+const CATS={feed:'餌',goods:'雑貨',med:'薬品'};
+const catOf=it=>it.cat||'feed';
+const isSimple=it=>it.kind==='simple';
+/* 牛舎マップの「区分」→ アプリの分類。衛生・治療（注射針・シリンジ・手袋など）は薬品のタブに入れる（品目の設定で変えられる） */
+function catFromSub(b){b=String(b||'');if(/^餌|補助飼料|鉱塩|飼料/.test(b))return'feed';if(/医薬|薬|衛生|治療/.test(b))return'med';return'goods'}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(db))}catch(e){alert('保存できませんでした：'+e.message)}}
 load();
 const itemOf=id=>db.items.find(i=>i.id===id);
@@ -196,6 +215,25 @@ function useOf(it){const c=calcUse(it),m=measUse(it),man=numOr(it.manual);
  for(const k of order){const[v,l]=pick[k];if(v!=null)return{v,src:l,c,m,man,want:k}}
  return{v:null,src:'',c,m,man}}
 
+/* ===== 雑貨・薬品・定期の袋もの（数える＋頼んだ＋届いた。計算はしない） ===== */
+function sState(it){const l=lastOf(it.id);const now=t0(Date.now()).getTime();const st={it,l,stock:l?l.val:null};
+ const pend=(it.orders||[]).filter(o=>!o.got);st.pend=pend;
+ if(it.lastOrd&&numOr(it.ivl)!=null){st.next=pd(it.lastOrd).getTime()+numOr(it.ivl)*DAY;st.toNext=Math.round((st.next-now)/DAY)}
+ st.low=numOr(it.min)!=null&&st.stock!=null&&st.stock<=numOr(it.min);
+ const ex=l&&l.exp?pd(l.exp).getTime():null;if(ex!=null){st.exp=ex;st.toExp=Math.round((ex-now)/DAY)}
+ st.late=pend.filter(o=>o.eta&&pd(o.eta).getTime()<now);
+ // 表示の札（いちばん大事なもの1つ）
+ if(st.toExp!=null&&st.toExp<0)st.chip=['ng','期限切れ'];
+ else if(st.low&&!pend.length)st.chip=['ng','少ない'];
+ else if(st.toNext!=null&&st.toNext<0&&!pend.length)st.chip=['ng','過ぎた'];
+ else if(pend.length)st.chip=['bl','注文済み'];
+ else if(st.toExp!=null&&st.toExp<=30)st.chip=['wa','期限近い'];
+ else if(st.toNext!=null&&st.toNext<=14)st.chip=['wa','2週間'];
+ else if(st.stock==null)st.chip=['no','未'];
+ else st.chip=['ok','OK'];
+ st.need=!pend.length&&(st.low||(st.toNext!=null&&st.toNext<=14));
+ return st}
+
 /* ===== 注文の目安 ===== */
 function grpState(g){
  const its=db.items.filter(i=>i.grp===g.id&&i.active);if(!its.length)return null;
@@ -221,7 +259,13 @@ function grpState(g){
 
 /* ===== 警告 ===== */
 function warnings(){const W=[];const now=Date.now();
- for(const it of db.items.filter(i=>i.active)){const l=lastOf(it.id);const ev=numOr(it.every,7);
+ for(const it of db.items.filter(i=>i.active&&isSimple(i))){const s=sState(it);const h='#i-'+it.id;
+  if(s.toExp!=null&&s.toExp<=30)W.push({it,href:h,kind:'期限',txt:`<b>${s.toExp<0?'使用期限が切れています':`使用期限まで${s.toExp}日`}</b>：${esc(it.name)}（${md(s.exp)}）`});
+  if(s.low&&!s.pend.length)W.push({it,href:h,kind:'少ない',txt:`<b>残りが少ない</b>：${esc(it.name)}（${nf(s.stock,'袋')} ${esc(it.unit)}・${nf(numOr(it.min),'袋')}以下）`});
+  else if(s.toNext!=null&&s.toNext<0&&!s.pend.length)W.push({it,href:h,kind:'目安',txt:`<b>頼む目安を${-s.toNext}日過ぎた</b>：${esc(it.name)}（前回 ${md(pd(it.lastOrd))}）`});
+  for(const o of s.late)W.push({it,href:h,kind:'入荷',txt:`<b>入荷予定日を過ぎた</b>：${esc(it.name)} ${nf(o.qty,'袋')}${esc(it.unit)}（${md(pd(o.eta))}予定）。届いていたら「届いた」を押す`});
+  const ev=numOr(it.every);if(ev!=null){const l=s.l;if(!l||days(l.at,now)>ev)W.push({it,href:'#chk-'+it.id,kind:'未チェック',txt:`<b>${l?days(l.at,now)+'日数えていません':'まだ数えていません'}</b>：${esc(it.name)}（${ev}日ごと）`})}}
+ for(const it of db.items.filter(i=>i.active&&!isSimple(i))){const l=lastOf(it.id);const ev=numOr(it.every,7);
   if(!l)W.push({it,kind:'未チェック',txt:`<b>まだチェックしていません</b>：${esc(it.name)}`});
   else if(days(l.at,now)>ev)W.push({it,kind:'未チェック',txt:`<b>${days(l.at,now)}日チェックしていません</b>：${esc(it.name)}（${ev}日ごとの決まり）`});
   else if(it.needPhoto&&!(l.photos||[]).length)W.push({it,kind:'写真なし',txt:`<b>写真がありません</b>：${esc(it.name)}（${md(l.at)}のチェック）`})}
@@ -238,6 +282,7 @@ function route(){const h=decodeURIComponent(location.hash.slice(1)||'home');DC=d
  if(h.startsWith('i-'))return viewItem(h.slice(2));
  if(h.startsWith('chk-'))return viewCheck(h.slice(4));
  if(h==='data')return viewData();
+ if(h==='order')return viewOrder();
  viewHome()}
 addEventListener('hashchange',()=>{document.querySelectorAll('.ov,.modal').forEach(e=>e.remove());CT=null;if(DRAFT&&!location.hash.startsWith('#chk-'))dropDraft();route()});
 
@@ -264,13 +309,32 @@ function grpCard(g){const s=grpState(g);if(!s)return'';const u=s.unit;
  if(s.ords.length)h+=`<p class="note">注文済み：${s.ords.map(o=>`${md(pd(o.dd))} ${nf(o.qty,u)}${u}`).join('、')}</p>`;
  h+=`<p class="note">目安です。注文の判断と正本は Excel の牛舎マップ。</p></div>`;return h}
 
-function viewHome(){setHead('在庫チェック',md(Date.now()));
- const W=warnings();const act=db.items.filter(i=>i.active),off=db.items.filter(i=>!i.active);
- app.innerHTML=`<div class="alerts">${W.length?W.map(w=>`<a class="alert" href="#chk-${w.it.id}">${w.txt}</a>`).join(''):'<div class="okbar">チェックはすべて済んでいます</div>'}</div>
- <h2>注文の目安</h2><div class="list">${db.grps.map(grpCard).filter(Boolean).join('')||'<p class="empty">使っている品目がありません</p>'}</div>
- <h2>チェックの一覧</h2><div class="list">${act.map(itemRow).join('')}</div>
+function simpleRow(it){const s=sState(it);
+ return `<div class="row"><a href="#i-${it.id}" style="flex:1;display:flex;gap:10px;align-items:center;color:inherit;text-decoration:none"><span class="t"><b>${esc(it.name)}</b><br>${[it.loc,it.vendor].filter(Boolean).map(esc).join(' ・')}${s.l?` ・${ago(s.l.at)}`:''}${s.toNext!=null?` ・目安 ${md(s.next)}`:''}</span>
+ <span class="v">${s.stock!=null?`<b>${nf(s.stock,'袋')}<small style="font-size:12px"> ${esc(it.unit)}</small></b>`:'—'}${s.exp?`期限 ${md(s.exp)}`:''}</span></a>
+ <span class="st ${s.chip[0]}">${s.chip[1]}</span><a class="btn sm kr" href="#chk-${it.id}">数える</a></div>`}
+function simpleList(its){const by={};for(const it of its){const k=it.sub||CATS[catOf(it)];(by[k]=by[k]||[]).push(it)}
+ return Object.entries(by).map(([k,a])=>`<p class="sub">${esc(k)}（${a.length}）</p><div class="list">${a.map(simpleRow).join('')}</div>`).join('')}
+function xlCard(){const x=db.xlNext;if(!x)return'';const rows=x.rows.filter(r=>r.q.some(v=>numOr(v,0)>0));
+ return `<div class="card"><h3>牛舎マップの「次の注文」</h3><p class="small" style="margin:0">${esc(x.file||'')}（${md(x.imp)}に取り込み）</p>
+ <table class="calc"><tr><td></td>${x.dl.map((d,k)=>`<td style="text-align:right;font-weight:400">締切 ${d?md(pd(d)):'—'}<br>納品 ${x.dd[k]?md(pd(x.dd[k])):'—'}</td>`).join('')}</tr>
+ ${rows.map(r=>`<tr><td>${esc(r.name)}</td>${r.q.map((v,k)=>`<td style="text-align:right;font-weight:700">${numOr(v,0)>0?nf(numOr(v),r.unit)+' '+esc(r.unit)+`<br><span class="small" style="font-weight:400">${esc(r.k[k]||'')}</span>`:'—'}</td>`).join('')}</tr>`).join('')||'<tr><td>3回とも頼む物はありません</td><td></td><td></td><td></td></tr>'}</table>
+ ${x.dl[0]&&days(Date.now(),pd(x.dl[0]))<0?'<p class="note red">1回目の締切が過ぎています。牛舎マップを開き直して、もう一度取り込んでください。</p>':''}
+ <p class="note">牛舎マップ（Excel）の計算をそのまま写したもの。変えるときはExcelで。</p></div>`}
+function viewHome(){setHead('在庫チェック',md(Date.now()));const tab=db.cfg.tab||'all';const inTab=it=>tab==='all'||catOf(it)===tab;
+ const W=warnings().filter(w=>inTab(w.it));const act=db.items.filter(i=>i.active&&inTab(i)),off=db.items.filter(i=>!i.active&&inTab(i));
+ const tanks=act.filter(i=>!isSimple(i)),simp=act.filter(isSimple);
+ const showFeed=tab==='all'||tab==='feed';
+ app.innerHTML=`<nav class="tabs">${[['all','全部'],['feed','餌'],['goods','雑貨'],['med','薬品']].map(([k,l])=>`<a href="#home" data-tab="${k}" class="${tab===k?'on':''}">${l}</a>`).join('')}</nav>
+ <div class="alerts">${W.length?W.map(w=>`<a class="alert" href="${w.href||'#chk-'+w.it.id}">${w.txt}</a>`).join(''):'<div class="okbar">気になるところはありません</div>'}</div>
+ ${showFeed?`${db.xlNext?`<h2>次の注文（牛舎マップ）</h2>${xlCard()}`:''}
+ <h2>注文の目安（アプリの計算）</h2><div class="list">${db.grps.map(grpCard).filter(Boolean).join('')||'<p class="empty">使っている品目がありません</p>'}</div>
+ <h2>タンク・袋のチェック</h2><div class="list">${tanks.map(itemRow).join('')||'<p class="empty">ありません</p>'}</div>`:''}
+ ${simp.length?`<h2>${tab==='feed'?'定期で頼む餌・補助飼料':tab==='all'?'定期で頼む物（餌・雑貨・薬品）':CATS[tab]}</h2>${simpleList(simp)}`:''}
+ ${!db.items.some(isSimple)?`<div class="card" style="margin-top:14px"><h3>雑貨・薬品がまだありません</h3><p class="small">「データ」→「牛舎マップから取り込む」で、牛舎マップ（Excel）の「定期発注品」の品目（手袋・注射針・薬など）がまとめて入ります。1つずつ足すこともできます。</p><a class="btn pri" href="#data">データへ</a></div>`:''}
  ${off.length?`<details><summary>使っていない品目（${off.length}）</summary><div class="list">${off.map(it=>`<a class="row" href="#i-${it.id}"><span class="t"><b>${esc(it.name)}</b><br>${esc(it.note||'')}</span><span class="st no">休止</span></a>`).join('')}</div></details>`:''}
- ${DC?'':'<p class="note">台帳アプリのデータが見つかりません。頭数からの計算は使えず、入力した1日量か実測で目安を出します。</p>'}`;
+ ${DC||!showFeed?'':'<p class="note">台帳アプリのデータが見つかりません。頭数からの計算は使えず、入力した1日量か実測で目安を出します。</p>'}`;
+ app.querySelectorAll('[data-tab]').forEach(a=>a.onclick=e=>{e.preventDefault();db.cfg.tab=a.dataset.tab;save();viewHome()});
  app.querySelectorAll('[data-ord]').forEach(b=>b.onclick=()=>orderModal(grpOf(b.dataset.ord)))}
 
 function orderModal(g){const s=grpState(g);const u=s?.unit||'';
@@ -285,11 +349,12 @@ function orderModal(g){const s=grpState(g);const u=s?.unit||'';
   g.orders.push({id:uid(),on:ymd(Date.now()),dd,qty:q,memo:m.querySelector('#om').value});save();m.remove();toast('記録しました');route()}}
 
 /* ----- 品目のページ ----- */
-function viewItem(id){const it=itemOf(id);if(!it)return viewHome();setHead(it.name,it.feed);
+function viewItem(id){const it=itemOf(id);if(!it)return viewHome();if(isSimple(it))return viewSimple(it);setHead(it.name,it.feed);
  const cs=checksOf(id).reverse();const u=useOf(it);const g=grpOf(it.grp);
  const crow=u.c?u.c.rows.map(r=>`<tr><td>${esc(r.label)}</td><td>${r.kg==null?'?':nf(r.kg)+' kg'}</td></tr>`).join(''):'';
  app.innerHTML=`<a class="btn big kr" href="#chk-${id}">残量をチェック（写真を撮る）</a>
  ${it.note?`<p class="note">${esc(it.note)}</p>`:''}
+ ${it.capNom!=null||it.capMax!=null?`<dl class="facts"><dt>公称</dt><dd>${nf(it.capNom)} ${it.unit}</dd><dt>実際の上限</dt><dd>${nf(it.capMax)} ${it.unit}</dd><dt>発注の目安</dt><dd>${nf(it.cap)} ${it.unit} まで</dd></dl>`:''}
  <h2>1日の使用量</h2><div class="card">
   <div class="adv">${u.v==null?'未設定':`${nf(u.v,it.unit)} ${it.unit}`} <small>${u.src?'（'+u.src+'）':''}</small></div>
   <dl class="facts"><dt>計算</dt><dd>${u.c?.ok?nf(u.c.v,it.unit)+' '+it.unit:'—'}</dd><dt>入力</dt><dd>${u.man!=null?nf(u.man,it.unit)+' '+it.unit:'—'}</dd><dt>実測</dt><dd>${u.m!=null?nf(u.m,it.unit)+' '+it.unit+'<span class="small">（直近5週）</span>':'—<span class="small">（チェック2回以上で出る）</span>'}</dd></dl>
@@ -298,14 +363,17 @@ function viewItem(id){const it=itemOf(id);if(!it)return viewHome();setHead(it.na
   <label class="f">入力する1日量（${it.unit}）</label><input id="man" inputmode="decimal" value="${it.manual??''}">
  </div>
  <h2>チェックの記録（${cs.length}）</h2><div class="hist">${cs.map(c=>`<div class="hrec">${(c.photos||[])[0]?`<img data-pid="${c.photos[0].pid}" data-view="${c.id}" alt="">`:'<span class="st ng">写真なし</span>'}
-  <span class="t"><b>${nf(c.val,it.unit)} ${it.unit}</b>　${dt(c.at)}<br><span class="small">${esc(c.who||'')}${(c.photos||[]).length?` ・写真${c.photos.length}枚`:''}${(c.photos||[]).some(p=>p.marks?.length)?` ・数えた ${c.photos.reduce((a,p)=>a+(p.marks?.length||0),0)}`:''}${c.memo?' ・'+esc(c.memo):''}</span></span>
+  <span class="t"><b>${nf(c.val,it.unit)} ${it.unit}</b>　${dt(c.at)}<br><span class="small">${esc(c.who||'')}${(c.photos||[]).length?` ・写真${c.photos.length}枚`:''}${(c.photos||[]).some(p=>p.marks?.length)?` ・数えた ${c.photos.reduce((a,p)=>a+(p.marks?.length||0),0)}`:''}${c.lvl?' ・目印：'+esc(c.lvl):''}${c.dlv?` ・<b>納品の${c.dlv.ph}</b>${c.dlv.qty!=null?' '+nf(c.dlv.qty)+it.unit:''}`:''}${c.memo?' ・'+esc(c.memo):''}</span></span>
   <button class="btn sm" data-del="${c.id}">消す</button></div>`).join('')||'<p class="empty">まだありません</p>'}</div>
  <details><summary>この品目の設定</summary><div class="card">
   <label class="f">名前</label><input id="s_name" value="${esc(it.name)}">
   <label class="f">飼料</label><input id="s_feed" value="${esc(it.feed||'')}">
   <label class="f">単位</label><select id="s_unit"><option>kg</option><option>袋</option></select>
   <label class="f">1袋のkg（袋のとき）</label><input id="s_kgp" inputmode="decimal" value="${it.kgPer??''}">
-  <label class="f">容量（${it.unit}。タンクの最大。入りきる量の計算に使う）</label><input id="s_cap" inputmode="decimal" value="${it.cap??''}">
+  <label class="f">公称の容量（${it.unit}。銘板・型の数字）</label><input id="s_nom" inputmode="decimal" value="${it.capNom??''}">
+  <label class="f">実際の上限（${it.unit}。これを超える数は確認が出る）</label><input id="s_max" inputmode="decimal" value="${it.capMax??''}">
+  <label class="f">発注の目安の上限（${it.unit}。注文量はここまでにしぼる）</label><input id="s_cap" inputmode="decimal" value="${it.cap??''}">
+  <label class="f">窓の目印（1行に「目印=kg」。チェックの画面でボタンになる）</label><textarea id="s_lv" rows="5">${esc((it.lv||[]).map(m=>m.label+'='+m.kg).join('\n'))}</textarea>
   <label class="f">何日ごとにチェックするか（過ぎると警告）</label><input id="s_ev" inputmode="numeric" value="${it.every??7}">
   <label class="f">注文のグループ（同じグループは合算）</label><select id="s_grp">${db.grps.map(x=>`<option value="${x.id}">${esc(x.name)}</option>`).join('')}</select>
   <label class="f"><input type="checkbox" id="s_ph" style="width:auto;min-height:0"> 写真を必ず撮る（無いと警告）</label>
@@ -328,45 +396,142 @@ function viewItem(id){const it=itemOf(id);if(!it)return viewHome();setHead(it.na
   $('#rules').querySelectorAll('select[data-f=t]').forEach(e=>e.value=rules[e.dataset.k].t);
   $('#rules').querySelectorAll('[data-rm]').forEach(b=>b.onclick=()=>{rules.splice(b.dataset.rm,1);drawR()})};
  drawR();$('#addR').onclick=()=>{rules.push({t:'head',barn:'',pens:'',kg:null});drawR()};
- $('#sv').onclick=()=>{Object.assign(it,{name:$('#s_name').value.trim()||it.name,feed:$('#s_feed').value,unit:$('#s_unit').value,kind:$('#s_unit').value==='袋'?'bag':'tank',kgPer:numOr($('#s_kgp').value),cap:numOr($('#s_cap').value),every:numOr($('#s_ev').value,7),grp:$('#s_grp').value,needPhoto:$('#s_ph').checked,active:$('#s_act').checked,note:$('#s_note').value,rules});save();toast('保存しました');viewItem(id)};
+ $('#sv').onclick=()=>{Object.assign(it,{name:$('#s_name').value.trim()||it.name,feed:$('#s_feed').value,unit:$('#s_unit').value,kind:$('#s_unit').value==='袋'?'bag':'tank',kgPer:numOr($('#s_kgp').value),cap:numOr($('#s_cap').value),capNom:numOr($('#s_nom').value),capMax:numOr($('#s_max').value),lv:$('#s_lv').value.split('\n').map(l=>{const k=l.lastIndexOf('=');return k>0?{label:l.slice(0,k).trim(),kg:numOr(l.slice(k+1))}:null}).filter(m=>m&&m.label&&m.kg!=null),every:numOr($('#s_ev').value,7),grp:$('#s_grp').value,needPhoto:$('#s_ph').checked,active:$('#s_act').checked,note:$('#s_note').value,rules});save();toast('保存しました');viewItem(id)};
  $('#delI').onclick=()=>{if(confirm(`「${it.name}」を消しますか？（チェックの記録は残ります）`)){db.items=db.items.filter(x=>x!==it);save();location.hash='#home'}};
  app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const c=db.checks.find(x=>x.id===b.dataset.del);if(!confirm(`${dt(c.at)} のチェックを消しますか？（写真も消えます）`))return;
   for(const p of c.photos||[])await pDel(p.pid).catch(()=>{});db.checks=db.checks.filter(x=>x!==c);save();viewItem(id)});
  app.querySelectorAll('[data-view]').forEach(im=>im.onclick=()=>{const c=db.checks.find(x=>x.id===im.dataset.view);viewPhotos(c,it)});
  fillImgs(app)}
 
+/* ----- 雑貨・薬品・定期の袋もの のページ ----- */
+function viewSimple(it){const id=it.id;setHead(it.name,[CATS[catOf(it)],it.sub].filter(Boolean).join('・'));const s=sState(it);const cs=checksOf(id).reverse();
+ const ords=(it.orders||[]).slice().sort((a,b)=>b.on.localeCompare(a.on));
+ app.innerHTML=`<a class="btn big kr" href="#chk-${id}">数える（在庫を記録）</a>
+ <div class="card" style="margin-top:12px"><div class="adv">${s.stock!=null?`${nf(s.stock,'袋')} ${esc(it.unit)}`:'まだ数えていません'} <span class="st ${s.chip[0]}" style="vertical-align:middle">${s.chip[1]}</span></div>
+  <dl class="facts">${s.l?`<dt>数えた日</dt><dd>${dt(s.l.at)}${s.l.who?' ・'+esc(s.l.who):''}</dd>`:''}${s.exp?`<dt>使用期限</dt><dd class="${s.toExp<=30?'red':''}">${md(s.exp)}${s.l.lot?' ・ロット '+esc(s.l.lot):''}</dd>`:''}
+  <dt>発注先</dt><dd>${esc(it.vendor||'—')}</dd><dt>いつもの量</dt><dd>${it.usual!=null?nf(it.usual,'袋')+' '+esc(it.unit):'—'}</dd>
+  <dt>間隔の目安</dt><dd>${it.ivl!=null?it.ivl+'日':'—'}</dd><dt>前回の発注日</dt><dd>${it.lastOrd?md(pd(it.lastOrd))+' '+it.lastOrd.slice(0,4):'—'}</dd>
+  ${s.next?`<dt>次の目安日</dt><dd class="${s.toNext<0?'red':''}">${md(s.next)}（${s.toNext<0?-s.toNext+'日過ぎた':'あと'+s.toNext+'日'}）</dd>`:''}
+  <dt>これ以下で頼む</dt><dd>${it.min!=null?nf(it.min,'袋')+' '+esc(it.unit):'—（設定で入れる）'}</dd>${it.loc?`<dt>置き場所</dt><dd>${esc(it.loc)}</dd>`:''}</dl>
+  ${it.note?`<p class="note">${esc(it.note)}</p>`:''}
+  <div class="btns" style="margin-top:8px"><button class="btn pri" id="ord">頼んだ</button>${s.pend.length?'<button class="btn kr" id="got">届いた</button>':''}</div></div>
+ ${ords.length?`<h2>注文の記録</h2><div class="hist">${ords.slice(0,10).map(o=>`<div class="hrec"><span class="t"><b>${nf(o.qty,'袋')} ${esc(it.unit)}</b>　${o.on} に頼んだ<br><span class="small">${o.got?'届いた '+o.got:o.eta?'入荷予定 '+o.eta:'入荷予定 —'}${o.memo?' ・'+esc(o.memo):''}</span></span>${o.got?'<span class="st ok">済</span>':'<span class="st bl">待ち</span>'}<button class="btn sm" data-delo="${o.id}">消す</button></div>`).join('')}</div>`:''}
+ <h2>数えた記録（${cs.length}）</h2><div class="hist">${cs.map(c=>`<div class="hrec">${(c.photos||[])[0]?`<img data-pid="${c.photos[0].pid}" data-view="${c.id}" alt="">`:''}
+  <span class="t"><b>${nf(c.val,'袋')} ${esc(it.unit)}</b>　${dt(c.at)}<br><span class="small">${esc(c.who||'')}${c.exp?' ・期限 '+c.exp:''}${c.lot?' ・ロット '+esc(c.lot):''}${c.memo?' ・'+esc(c.memo):''}</span></span>
+  <button class="btn sm" data-del="${c.id}">消す</button></div>`).join('')||'<p class="empty">まだありません</p>'}</div>
+ <details><summary>この品目の設定</summary><div class="card">
+  <label class="f">名前</label><input id="s_name" value="${esc(it.name)}">
+  <label class="f">分類（どのタブに出すか）</label><select id="s_cat">${Object.entries(CATS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+  <label class="f">区分（一覧の見出し。例：衛生・治療）</label><input id="s_sub" value="${esc(it.sub||'')}">
+  <label class="f">単位（箱・本・袋・個など）</label><input id="s_unit" value="${esc(it.unit||'')}">
+  <label class="f">発注先（担当）</label><input id="s_ven" value="${esc(it.vendor||'')}">
+  <div class="rule"><label class="small">いつもの量<input id="s_us" inputmode="decimal" value="${it.usual??''}"></label>
+  <label class="small">間隔の目安（日）<input id="s_iv" inputmode="numeric" value="${it.ivl??''}"></label>
+  <label class="small">前回の発注日<input type="date" id="s_lo" value="${it.lastOrd||''}"></label>
+  <label class="small">これ以下で頼む（最低在庫）<input id="s_min" inputmode="decimal" value="${it.min??''}"></label>
+  <label class="small">何日ごとに数えるか（空＝警告しない）<input id="s_ev" inputmode="numeric" value="${it.every??''}"></label>
+  <label class="small">入荷までの日数<input id="s_ld" inputmode="numeric" value="${it.lead??''}"></label></div>
+  <label class="f">置き場所</label><input id="s_loc" value="${esc(it.loc||'')}" placeholder="例：薬品庫の冷蔵庫・東タワー横の小屋">
+  <label class="f">牛舎マップ（定期発注品）での名前（取り込み・貼り付けで使う）</label><input id="s_xl" value="${esc(it.xl||'')}">
+  <label class="f"><input type="checkbox" id="s_ph" style="width:auto;min-height:0"> 写真を必ず撮る（無いと警告）</label>
+  <label class="f"><input type="checkbox" id="s_act" style="width:auto;min-height:0"> 使っている（外すと一覧と警告から外れる）</label>
+  <label class="f">メモ</label><input id="s_note" value="${esc(it.note||'')}">
+  <div class="btns" style="margin-top:14px"><button class="btn pri" id="sv">設定を保存</button><button class="btn warn" id="delI">この品目を消す</button></div>
+ </div></details>`;
+ $('#s_cat').value=catOf(it);$('#s_ph').checked=!!it.needPhoto;$('#s_act').checked=!!it.active;
+ $('#ord').onclick=()=>sOrderModal(it);const g=$('#got');if(g)g.onclick=()=>gotModal(it);
+ $('#sv').onclick=()=>{Object.assign(it,{name:$('#s_name').value.trim()||it.name,cat:$('#s_cat').value,sub:$('#s_sub').value.trim(),unit:$('#s_unit').value.trim()||'個',vendor:$('#s_ven').value.trim(),usual:numOr($('#s_us').value),ivl:numOr($('#s_iv').value),lastOrd:$('#s_lo').value,min:numOr($('#s_min').value),every:numOr($('#s_ev').value),lead:numOr($('#s_ld').value),loc:$('#s_loc').value.trim(),xl:$('#s_xl').value.trim(),needPhoto:$('#s_ph').checked,active:$('#s_act').checked,note:$('#s_note').value});save();toast('保存しました');viewSimple(it)};
+ $('#delI').onclick=()=>{if(confirm(`「${it.name}」を消しますか？（数えた記録は残ります）`)){db.items=db.items.filter(x=>x!==it);save();location.hash='#home'}};
+ app.querySelectorAll('[data-delo]').forEach(b=>b.onclick=()=>{if(!confirm('この注文の記録を消しますか？'))return;it.orders=it.orders.filter(o=>o.id!==b.dataset.delo);save();viewSimple(it)});
+ app.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{const c=db.checks.find(x=>x.id===b.dataset.del);if(!confirm(`${dt(c.at)} の記録を消しますか？（写真も消えます）`))return;
+  for(const p of c.photos||[])await pDel(p.pid).catch(()=>{});db.checks=db.checks.filter(x=>x!==c);save();viewSimple(it)});
+ app.querySelectorAll('[data-view]').forEach(im=>im.onclick=()=>{const c=db.checks.find(x=>x.id===im.dataset.view);viewPhotos(c,it)});
+ fillImgs(app)}
+function leadOf(it){const n=numOr(it.lead);if(n!=null)return n;return/明治/.test(it.vendor||'')?14:7}
+function sOrderModal(it,after){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card"><h3>頼んだ：${esc(it.name)}</h3>
+ <label class="f">頼んだ日</label><input type="date" id="oo" value="${ymd(Date.now())}">
+ <label class="f">頼んだ数（${esc(it.unit)}）</label><div class="inrow"><input class="num" id="oq" inputmode="decimal" value="${it.usual??''}"><span>${esc(it.unit)}</span></div>
+ <label class="f">入荷予定日（だいたいでよい）</label><input type="date" id="oe" value="${ymd(Date.now()+leadOf(it)*DAY)}">
+ <label class="f">メモ</label><input id="om" placeholder="${esc(it.vendor||'業者・電話した人など')}">
+ <div class="btns" style="margin-top:14px"><button class="btn pri" id="ok">記録する</button><button class="btn" id="cx">やめる</button></div>
+ <p class="note">「前回の発注日」もこの日に変わります。物品発注リスト（Excel）への記録はこれまでどおり。</p></div>`;
+ document.body.append(m);m.querySelector('#cx').onclick=()=>m.remove();
+ m.querySelector('#ok').onclick=()=>{const on=m.querySelector('#oo').value,q=numOr(m.querySelector('#oq').value);if(!on||q==null)return alert('頼んだ日と数を入れてください');
+  (it.orders=it.orders||[]).push({id:uid(),on,qty:q,eta:m.querySelector('#oe').value,memo:m.querySelector('#om').value,got:null});if(!it.lastOrd||on>=it.lastOrd)it.lastOrd=on;save();m.remove();toast('記録しました');after?after():route()}}
+function gotModal(it){const s=sState(it);const o=s.pend[0];const MED=catOf(it)==='med';const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card"><h3>届いた：${esc(it.name)}</h3>
+ <label class="f">届いた数（${esc(it.unit)}）</label><div class="inrow"><input class="num" id="gq" inputmode="decimal" value="${o.qty??''}"><span>${esc(it.unit)}</span></div>
+ <label class="f">届く前の在庫（${esc(it.unit)}）</label><input id="gb" inputmode="decimal" value="${s.stock??0}">
+ ${MED?`<label class="f">使用期限（届いた物）</label><input type="date" id="ge"><p class="note">今ある物の期限（${s.l?.exp||'—'}）のほうが近ければ、そちらが残ります。</p>`:''}
+ <div class="btns" style="margin-top:14px"><button class="btn pri" id="ok">記録する</button><button class="btn" id="cx">やめる</button></div>
+ <p class="note">在庫＝届く前＋届いた数 で記録します。${s.pend.length>1?`ほかにも待ちの注文が${s.pend.length-1}件あります（古い順に1件ずつ）。`:''}</p></div>`;
+ document.body.append(m);m.querySelector('#cx').onclick=()=>m.remove();
+ m.querySelector('#ok').onclick=()=>{const q=numOr(m.querySelector('#gq').value),b=numOr(m.querySelector('#gb').value,0);if(q==null)return alert('届いた数を入れてください');
+  let exp=s.l?.exp||'';if(MED){const e=m.querySelector('#ge').value;if(e&&(!exp||e<exp||(s.stock||0)<=0))exp=e}
+  o.got=ymd(Date.now());if(q!==o.qty)o.memo=(o.memo?o.memo+' ':'')+`（届いたのは${q}）`;
+  db.checks.push({id:uid(),item:it.id,at:Date.now(),val:b+q,photos:[],who:db.cfg.who,memo:`入荷 ${q}${it.unit}`,lvl:'',dlv:{ph:'後',qty:q},...(MED?{exp,lot:s.l?.lot||''}:{})});
+  save();m.remove();toast('記録しました');route()}}
+
+/* ----- 注文メモ（今頼む物を発注先ごとに。電話・LINE用にコピー） ----- */
+function viewOrder(){setHead('注文メモ','今頼む物を発注先ごとに');
+ const its=db.items.filter(i=>i.active&&isSimple(i)).map(sState).filter(s=>s.need);
+ const by={};for(const s of its){const k=s.it.vendor||'発注先なし';(by[k]=by[k]||[]).push(s)}
+ const x=db.xlNext;const feed=x?x.rows.filter(r=>numOr(r.q[0],0)>0):[];
+ let txt='';
+ if(feed.length)txt+=`【餌（牛舎マップ） 締切 ${md(pd(x.dl[0]))}・納品 ${md(pd(x.dd[0]))}】\n`+feed.map(r=>`・${r.name} ${nf(numOr(r.q[0]),r.unit)}${r.unit}`).join('\n')+'\n\n';
+ for(const[k,a]of Object.entries(by))txt+=`【${k}】\n`+a.map(s=>`・${s.it.name} ${s.it.usual!=null?nf(s.it.usual,'袋')+s.it.unit:'（数？）'}`).join('\n')+'\n\n';
+ txt=txt.trim();
+ app.innerHTML=`<p class="small">「頼む目安が2週間以内・過ぎた」か「これ以下で頼む」を切った物で、まだ「頼んだ」を押していない物。数はいつもの量。${x?'餌は牛舎マップの次の注文の1回目。':'餌のタンクは「一覧」の注文の目安を見る。'}</p>
+ ${txt?`<pre class="memo" id="tx">${esc(txt)}</pre><div class="btns" style="margin-top:8px"><button class="btn pri" id="cp">文をコピー</button>${navigator.share?'<button class="btn" id="sh">送る（LINE・メール）</button>':''}</div>`:'<div class="okbar">今頼む物はありません</div>'}
+ ${Object.entries(by).map(([k,a])=>`<h2>${esc(k)}</h2><div class="list">${a.map(s=>`<div class="row"><a href="#i-${s.it.id}" style="flex:1;color:inherit;text-decoration:none" class="t"><b>${esc(s.it.name)}</b><br>在庫 ${s.stock!=null?nf(s.stock,'袋')+' '+esc(s.it.unit):'—'}${s.next?' ・目安 '+md(s.next):''}</a><span class="st ${s.chip[0]}">${s.chip[1]}</span><button class="btn sm pri" data-o="${s.it.id}">頼んだ</button></div>`).join('')}</div>`).join('')}
+ <p class="note">頼んだら「頼んだ」を押すと、ここから消えて「注文済み」になります。届いたら品目のページで「届いた」。</p>`;
+ const cp=$('#cp');if(cp)cp.onclick=async()=>{try{await navigator.clipboard.writeText(txt);toast('コピーしました')}catch(e){const r=document.createRange();r.selectNode($('#tx'));getSelection().removeAllRanges();getSelection().addRange(r);toast('選んだので長押しでコピー')}};
+ const sh=$('#sh');if(sh)sh.onclick=()=>navigator.share({text:txt}).catch(()=>{});
+ app.querySelectorAll('[data-o]').forEach(b=>b.onclick=()=>sOrderModal(itemOf(b.dataset.o),viewOrder))}
+
 /* ----- チェックの画面 ----- */
 let DRAFT=null;
 function dropDraft(){if(DRAFT&&!DRAFT.saved)for(const p of DRAFT.photos)pDel(p.pid).catch(()=>{});DRAFT=null}
 function viewCheck(id){const it=itemOf(id);if(!it)return viewHome();
- if(!DRAFT||DRAFT.item!==id){dropDraft();DRAFT={item:id,photos:[],val:'',memo:'',typed:false}}
+ const SIM=isSimple(it),MED=catOf(it)==='med';
+ if(!DRAFT||DRAFT.item!==id){dropDraft();const l0=lastOf(id);DRAFT={item:id,photos:[],val:'',memo:'',typed:false,exp:l0?.exp||'',lot:l0?.lot||''}}
  setHead('チェック：'+it.name,it.feed);const l=lastOf(id);const sum=DRAFT.photos.reduce((a,p)=>a+(p.marks?.length||0),0);const counted=DRAFT.photos.some(p=>p.marks?.length);
  if(counted&&!DRAFT.typed)DRAFT.val=String(sum);
- app.innerHTML=`<div class="card"><h3>1. 写真を撮る${it.needPhoto?'<span class="red">（必須）</span>':''}</h3>
-  <p class="small">${it.unit==='袋'?'袋の山が全部入るように。2か所にあるときは2枚に分けて撮る。':'タンクの目盛り・のぞき窓の残りの高さがわかるように。'}</p>
-  <div class="thumbs">${DRAFT.photos.map((p,k)=>`<div class="th"><img data-pid="${p.pid}" data-k="${k}" alt="">${p.marks?.length?`<span class="cnt">${p.marks.length}</span>`:''}<button data-cnt="${k}">${it.unit==='袋'?'数える':'見る'}</button><button data-rmp="${k}">消す</button></div>`).join('')}</div>
+ app.innerHTML=`<div class="card"><h3>1. 写真を撮る${it.needPhoto?'<span class="red">（必須）</span>':'<span class="small">（なくてもよい）</span>'}</h3>
+  <p class="small">${SIM?'棚・箱の数がわかるように。袋が多いときは写真の上でタップして数えられる。':it.unit==='袋'?'袋の山が全部入るように。2か所にあるときは2枚に分けて撮る。':'タンクの目盛り・のぞき窓の残りの高さがわかるように。'}</p>
+  <div class="thumbs">${DRAFT.photos.map((p,k)=>`<div class="th"><img data-pid="${p.pid}" data-k="${k}" alt="">${p.marks?.length?`<span class="cnt">${p.marks.length}</span>`:''}<button data-cnt="${k}">${it.unit!=='kg'?'数える':'見る'}</button><button data-rmp="${k}">消す</button></div>`).join('')}</div>
   <div class="btns" style="margin-top:10px"><button class="btn big kr" id="shot">📷 写真を撮る</button></div></div>
  <div class="card" style="margin-top:12px"><h3>2. 残りの量</h3>
   ${counted?`<p class="small">写真で数えた合計：<b>${sum} 袋</b>（直したときは下の数を書きかえる）</p>`:''}
-  <div class="inrow"><input class="num" id="val" inputmode="decimal" value="${esc(DRAFT.val)}" placeholder="0"><span>${it.unit}</span></div>
-  ${l?`<p class="small">前回：${nf(l.val,it.unit)} ${it.unit}（${dt(l.at)}）</p>`:''}
+  ${(it.lv||[]).length?`<p class="small" style="margin:4px 0">窓の目印から選ぶ（間なら数を直す）：</p><div class="btns" style="margin-bottom:8px">${it.lv.map((m,k)=>`<button class="btn sm${DRAFT.lvl===m.label?' pri':''}" data-lv="${k}">${esc(m.label)}<br>${nf(m.kg)}kg</button>`).join('')}</div>`:''}
+  <div class="inrow">${SIM?'<button class="btn" id="mi" style="min-width:56px;font-size:24px">−</button>':''}<input class="num" id="val" inputmode="decimal" value="${esc(DRAFT.val)}" placeholder="0">${SIM?'<button class="btn" id="pl" style="min-width:56px;font-size:24px">＋</button>':''}<span>${esc(it.unit)}</span></div>
+  ${l?`<p class="small">前回：${nf(l.val,it.unit)} ${esc(it.unit)}（${dt(l.at)}）${SIM?' <button class="btn sm" id="same">前回と同じ</button>':''}</p>`:''}
+  ${SIM?`${MED?`<label class="f">使用期限（いちばん近いもの）</label><input type="date" id="exp" value="${esc(DRAFT.exp||'')}"><label class="f">ロット番号（あれば）</label><input id="lot" value="${esc(DRAFT.lot||'')}">`:''}`:`<label class="f">このチェックは</label><select id="dph"><option value="">ふだんのチェック</option><option value="前">納品の前</option><option value="後">納品の後</option></select>
+  <div id="dqw" ${DRAFT.dph==='後'?'':'hidden'}><label class="f">入った納品量（${it.unit}。納品書の数字）</label><input id="dq" inputmode="decimal" value="${esc(DRAFT.dq||'')}"></div>`}
+  ${it.kind==='tank'?'<p class="note">窓では残って見えても、円すいの中でえさが固まって出てこないこと（棚吊り）がある。給餌機の出方も見る。</p>':''}
   <label class="f">担当</label><input id="who" value="${esc(db.cfg.who||'')}" placeholder="名前">
-  <label class="f">メモ</label><input id="memo" value="${esc(DRAFT.memo)}" placeholder="気づいたこと（湿気・破れ・ネズミなど）">
+  <label class="f">メモ</label><input id="memo" value="${esc(DRAFT.memo)}" placeholder="${SIM?'気づいたこと（開封済み・置き場所など）':'気づいたこと（湿気・破れ・ネズミなど）'}">
  </div>
  <div class="btns" style="margin-top:14px"><button class="btn big pri" id="save">記録する</button></div>
  <p class="note">撮った写真には日時・品目・担当の帯が入ります。写真はこのスマホの中だけに保存されます。</p>`;
  fillImgs(app);
  $('#val').oninput=e=>{DRAFT.val=e.target.value;DRAFT.typed=true};$('#memo').oninput=e=>DRAFT.memo=e.target.value;
  $('#who').onchange=e=>{db.cfg.who=e.target.value.trim();save()};
+ if(!SIM){$('#dph').value=DRAFT.dph||'';$('#dph').onchange=e=>{DRAFT.dph=e.target.value;$('#dqw').hidden=DRAFT.dph!=='後'};$('#dq').oninput=e=>DRAFT.dq=e.target.value}
+ else{const bump=d=>{const v=Math.max(0,(numOr($('#val').value,0))+d);$('#val').value=v;DRAFT.val=String(v);DRAFT.typed=true};$('#mi').onclick=()=>bump(-1);$('#pl').onclick=()=>bump(1);
+  const sm=$('#same');if(sm)sm.onclick=()=>{$('#val').value=l.val;DRAFT.val=String(l.val);DRAFT.typed=true};
+  if(MED){$('#exp').onchange=e=>DRAFT.exp=e.target.value;$('#lot').oninput=e=>DRAFT.lot=e.target.value}}
+ app.querySelectorAll('[data-lv]').forEach(b=>b.onclick=()=>{const m=it.lv[b.dataset.lv];DRAFT.lvl=m.label;DRAFT.val=String(m.kg);DRAFT.typed=true;viewCheck(id)});
+ $('#val').addEventListener('input',()=>{const m=(it.lv||[]).find(x=>x.label===DRAFT.lvl);if(m&&numOr(DRAFT.val)!==m.kg)DRAFT.lvl=''});
  $('#shot').onclick=()=>{const c=$('#cam');c.value='';c.onchange=async()=>{const f=c.files[0];if(!f)return;toast('写真を保存しています…');
-   try{const p=await makePhoto(f,it);DRAFT.photos.push(p);viewCheck(id);if(it.unit==='袋')openCount(p,()=>viewCheck(id))}catch(e){alert('写真を読めませんでした：'+e.message)}};c.click()};
- app.querySelectorAll('[data-cnt]').forEach(b=>b.onclick=()=>{const p=DRAFT.photos[b.dataset.cnt];if(it.unit==='袋')openCount(p,()=>viewCheck(id));else viewOne(p)});
+   try{const p=await makePhoto(f,it);DRAFT.photos.push(p);viewCheck(id);if(it.unit!=='kg')openCount(p,()=>viewCheck(id))}catch(e){alert('写真を読めませんでした：'+e.message)}};c.click()};
+ app.querySelectorAll('[data-cnt]').forEach(b=>b.onclick=()=>{const p=DRAFT.photos[b.dataset.cnt];if(it.unit!=='kg')openCount(p,()=>viewCheck(id));else viewOne(p)});
  app.querySelectorAll('.th img').forEach(im=>im.onclick=()=>viewOne(DRAFT.photos[im.dataset.k]));
  app.querySelectorAll('[data-rmp]').forEach(b=>b.onclick=async()=>{const p=DRAFT.photos.splice(b.dataset.rmp,1)[0];await pDel(p.pid).catch(()=>{});viewCheck(id)});
  $('#save').onclick=()=>{const v=numOr($('#val').value);if(v==null)return alert('残りの量を入れてください');
   if(it.needPhoto&&!DRAFT.photos.length&&!confirm('写真がありません。写真なしで記録しますか？（「写真なし」の警告が出ます）'))return;
-  if(it.cap&&v>it.cap*1.05&&!confirm(`容量（${it.cap}${it.unit}）より多い数です。このまま記録しますか？`))return;
-  db.checks.push({id:uid(),item:id,at:Date.now(),val:v,photos:DRAFT.photos.map(p=>({pid:p.pid,w:p.w,h:p.h,at:p.at,marks:p.marks||[]})),who:db.cfg.who,memo:DRAFT.memo});
+  const lim=it.capMax??it.cap;if(lim&&v>lim*1.02&&!confirm(`${it.capMax!=null?'実際の上限':'容量'}（${nf(lim,it.unit)}${it.unit}）より多い数です。このまま記録しますか？`))return;
+  if(DRAFT.dph==='後'&&numOr(DRAFT.dq)==null&&!confirm('納品量が空です。このまま記録しますか？'))return;
+  db.checks.push({id:uid(),item:id,at:Date.now(),val:v,photos:DRAFT.photos.map(p=>({pid:p.pid,w:p.w,h:p.h,at:p.at,marks:p.marks||[]})),who:db.cfg.who,memo:DRAFT.memo,lvl:DRAFT.lvl||'',dlv:DRAFT.dph?{ph:DRAFT.dph,qty:numOr(DRAFT.dq)}:null,...(SIM&&MED?{exp:DRAFT.exp||'',lot:DRAFT.lot||''}:{})});
   DRAFT.saved=true;DRAFT=null;save();toast('記録しました');location.hash='#home'}}
 
 /* ----- 写真を見る（数えた印つき） ----- */
@@ -440,8 +605,14 @@ function pick(){const{R,ow,oh,step,tw,th,s}=CT.ncc;const thr=CT.thr/100;const ca
  CT.marks=[...keep.map(k=>[Math.round((k[1]+tw/2)/s),Math.round((k[2]+th/2)/s),1]),...manual]}
 
 /* ===== データの画面 ===== */
-function viewData(){setHead('データ','設定・書き出し・バックアップ');const D=DC;
- app.innerHTML=`<h2>担当とプラン</h2><div class="card">
+function viewData(){setHead('データ','牛舎マップとつなぐ・設定・バックアップ');const D=DC;const x=db.xlNext;
+ app.innerHTML=`<h2>牛舎マップ（Excel）とつなぐ</h2><div class="card">
+  <p class="small" style="margin-top:0"><b>① Excel → アプリ</b>：牛舎マップの正本（.xlsx）を選ぶと、「定期発注品」の品目（区分・発注先・いつもの量・間隔・前回の発注日）と「次の注文」の表を読みます。Excelは書きかえません。</p>
+  <button class="btn pri" id="xin">牛舎マップから取り込む（.xlsx を選ぶ）</button>
+  <p class="note">${x?`前回：${esc(x.file||'')}（${dt(x.impAt||Date.now())}）`:'まだ取り込んでいません。'}スマホに無いときは、職場PCからGoogleドライブ・LINE・メールなどで送ってから選ぶ。</p>
+  <p class="small" style="margin-top:14px"><b>② アプリ → Excel</b>：在庫（数えた数・期限・頼んだ日）のCSVを書き出し、Excelで開いて全部コピー → 牛舎マップの「在庫アプリ貼り付け」シートのA1に貼り付け。「定期発注品」「次の注文」に在庫が出ます。</p>
+  <button class="btn kr" id="xout">牛舎マップに貼るCSV（在庫）</button></div>
+ <h2>担当とプラン</h2><div class="card">
   <label class="f">担当の名前（写真の帯と記録に入る）</label><input id="who" value="${esc(db.cfg.who||'')}">
   <label class="f">成雌の給餌プランの1日量（kg/頭/日。タンクの計算に使う）</label>
   <div class="inrow">${['A','B','C'].map(L=>`<span>${L}</span><input data-pk="${L}" inputmode="decimal" value="${db.cfg.planKg[L]??''}">`).join('')}</div>
@@ -454,14 +625,14 @@ function viewData(){setHead('データ','設定・書き出し・バックアッ
   <label class="small">予備（何日分）<input data-g="${g.id}" data-f="safety" inputmode="decimal" value="${g.safety??''}"></label>
   <label class="small">グループの名前<input data-g="${g.id}" data-f="name" value="${esc(g.name)}"></label></div>
   ${(g.orders||[]).length?`<p class="small" style="margin-bottom:0">注文の記録：</p>${g.orders.slice().sort((a,b)=>b.dd.localeCompare(a.dd)).slice(0,8).map(o=>`<div class="inrow small" style="justify-content:space-between">納品 ${o.dd}　${nf(o.qty)}${o.memo?' ・'+esc(o.memo):''}<button class="btn sm" data-delo="${g.id}|${o.id}">消す</button></div>`).join('')}`:''}</div>`).join('')}
- <div class="btns"><button class="btn" id="addG">グループを足す</button><button class="btn" id="addI">品目を足す</button></div>
+ <div class="btns"><button class="btn" id="addG">グループを足す</button><button class="btn" id="addI">品目を足す（タンク・袋のチェック）</button><button class="btn pri" id="addS">品目を足す（雑貨・薬品など）</button></div>
  <h2>書き出し</h2><div class="btns"><button class="btn pri" id="csv">チェックのCSV（牛舎マップに貼る用）</button><button class="btn" id="ocsv">注文のCSV</button><button class="btn" id="zip">写真をZIPで（数えた印つき）</button></div>
  <h2>バックアップ</h2><div class="btns"><button class="btn" id="bk">バックアップ（JSON・写真は入らない）</button><button class="btn" id="rs">バックアップから戻す</button></div><input type="file" id="rf" accept=".json,application/json" hidden>
  <h2>写真の保存場所</h2><div class="card"><p id="stor" class="small">しらべています…</p>
   <div class="inrow"><span>この日数より古い写真を消す</span><input id="oldd" inputmode="numeric" value="180" style="max-width:90px"><button class="btn sm warn" id="delold">消す</button></div>
   <p class="note">消すのは写真だけで、数・日時の記録は残ります。先に「写真をZIPで」で職場PCへ保存してから。</p></div>
  <h2>はじめから</h2><div class="btns"><button class="btn warn" id="wipe">全部消す（写真も）</button><button class="btn" id="def">品目を初期値に戻す（記録は残す）</button></div>
- <p class="note">版：zaiko v1 ・データはこのスマホのChromeの中だけ（GitHubには上がりません）。</p>`;
+ <p class="note">版：zaiko v3 ・データはこのスマホのChromeの中だけ（GitHubには上がりません）。</p>`;
  $('#who').onchange=e=>{db.cfg.who=e.target.value.trim();save()};
  app.querySelectorAll('[data-pk]').forEach(e=>e.onchange=()=>{db.cfg.planKg[e.dataset.pk]=numOr(e.value);save()});
  app.querySelectorAll('[data-g]').forEach(e=>e.onchange=()=>{const g=grpOf(e.dataset.g);const f=e.dataset.f;g[f]=(f==='next'||f==='name')?e.value:numOr(e.value);save();toast('保存しました')});
@@ -469,8 +640,8 @@ function viewData(){setHead('データ','設定・書き出し・バックアッ
  $('#addG').onclick=()=>{const n=prompt('グループの名前（例：成雌の袋もの）');if(!n)return;db.grps.push({id:uid(),name:n,unit:1,interval:7,lead:7,next:'',safety:2,orders:[]});save();viewData()};
  $('#addI').onclick=()=>{const n=prompt('品目の名前（例：ミネラル塩）');if(!n)return;const u=confirm('袋・箱など「個数」で数えますか？\n（OK＝袋、キャンセル＝kg）')?'袋':'kg';
   const gid=uid();db.grps.push({id:gid,name:n,unit:1,interval:7,lead:7,next:'',safety:2,orders:[]});const id=uid();db.items.push({id,name:n,feed:'',kind:u==='袋'?'bag':'tank',unit:u,kgPer:null,cap:null,grp:gid,active:true,every:7,needPhoto:true,useMode:'manual',manual:null,rules:[],note:''});save();location.hash='#i-'+id};
- $('#csv').onclick=()=>{const rows=[['日時','品目','飼料','残量','単位','写真で数えた数','写真の枚数','担当','メモ']];
-  for(const c of db.checks.slice().sort((a,b)=>a.at-b.at)){const it=itemOf(c.item)||{name:c.item,unit:''};rows.push([dt(c.at),it.name,it.feed||'',c.val,it.unit,(c.photos||[]).some(p=>p.marks?.length)?c.photos.reduce((a,p)=>a+(p.marks?.length||0),0):'',(c.photos||[]).length,c.who||'',c.memo||''])}
+ $('#csv').onclick=()=>{const rows=[['日時','品目','飼料','残量','単位','写真で数えた数','写真の枚数','窓の目印','納品の前後','納品量','担当','メモ']];
+  for(const c of db.checks.slice().sort((a,b)=>a.at-b.at)){const it=itemOf(c.item)||{name:c.item,unit:''};rows.push([dt(c.at),it.name,it.feed||'',c.val,it.unit,(c.photos||[]).some(p=>p.marks?.length)?c.photos.reduce((a,p)=>a+(p.marks?.length||0),0):'',(c.photos||[]).length,c.lvl||'',c.dlv?.ph||'',c.dlv?.qty??'',c.who||'',c.memo||''])}
   dl(csv(rows),`zaiko-checks-${ymd(Date.now())}.csv`,'text/csv')};
  $('#ocsv').onclick=()=>{const rows=[['記録日','グループ','納品日','量','単位','メモ']];for(const g of db.grps)for(const o of g.orders||[])rows.push([o.on,g.name,o.dd,o.qty,db.items.find(i=>i.grp===g.id)?.unit||'',o.memo||'']);dl(csv(rows),`zaiko-orders-${ymd(Date.now())}.csv`,'text/csv')};
  $('#zip').onclick=async()=>{const b=$('#zip');b.disabled=true;b.textContent='作っています…';try{const files=[];
@@ -479,9 +650,9 @@ function viewData(){setHead('データ','設定・書き出し・バックアッ
     files.push({name:`${ymd(c.at)}_${hm(c.at).replace(':','')}_${it.name.replace(/[\\/:*?"<>|\s（）()]/g,'')}_${c.val}${it.unit}_${k}.jpg`,data:new Uint8Array(await bl.arrayBuffer()),date:new Date(c.at)})}}
   if(!files.length){alert('写真がありません');return}
   dl(makeZip(files),`zaiko-photos-${ymd(Date.now())}.zip`,'application/zip')}finally{b.disabled=false;b.textContent='写真をZIPで（数えた印つき）'}};
- $('#bk').onclick=()=>dl(JSON.stringify({...db,meta:{app:'zaiko',v:1,at:dt(Date.now())}}),`zaiko-backup-${ymd(Date.now())}.json`,'application/json');
+ $('#bk').onclick=()=>dl(JSON.stringify({...db,meta:{app:'zaiko',v:3,at:dt(Date.now())}}),`zaiko-backup-${ymd(Date.now())}.json`,'application/json');
  $('#rs').onclick=()=>{const f=$('#rf');f.value='';f.onchange=async()=>{try{const d=JSON.parse(await f.files[0].text());if(!d.items||!d.checks)throw new Error('在庫アプリのバックアップではありません');
-   if(!confirm(`今のデータを入れかえます（チェック ${d.checks.length}件）。よいですか？`))return;delete d.meta;db=d;save();toast('戻しました');viewData()}catch(e){alert('読めませんでした：'+e.message)}};f.click()};
+   if(!confirm(`今のデータを入れかえます（チェック ${d.checks.length}件）。よいですか？`))return;delete d.meta;db=d;fixup();save();toast('戻しました');viewData()}catch(e){alert('読めませんでした：'+e.message)}};f.click()};
  (async()=>{let t='';try{const e=await navigator.storage.estimate();t=`使っている量 約${(e.usage/1048576).toFixed(1)}MB ／ 使える量 約${(e.quota/1048576/1024).toFixed(1)}GB`}catch(e){}
   const ks=await pKeys().catch(()=>[]);const pers=navigator.storage?.persisted?await navigator.storage.persisted():false;
   $('#stor').textContent=`写真 ${ks.length}枚。${t}。${pers?'消されにくい設定になっています。':'（ブラウザが空き容量のために消すことがあります。ホーム画面に追加して使うと消されにくい）'}`})();
@@ -489,7 +660,74 @@ function viewData(){setHead('データ','設定・書き出し・バックアッ
   if(!tg.length)return alert('対象の写真はありません');if(!confirm(`${n}日より古い写真 ${tg.length}枚を消します。元に戻せません。よいですか？`))return;for(const pid of tg)await pDel(pid).catch(()=>{});toast(`${tg.length}枚消しました`);viewData()};
  $('#wipe').onclick=async()=>{if(!confirm('チェックの記録・注文の記録・写真・設定を全部消します。元に戻せません。'))return;if(!confirm('本当に消しますか？'))return;
   const ks=await pKeys().catch(()=>[]);for(const k of ks)await pDel(k).catch(()=>{});localStorage.removeItem(KEY);load();toast('消しました');location.hash='#home'};
- $('#def').onclick=()=>{if(!confirm('品目・グループの設定を初期値に戻します（チェックと注文の記録は残ります）'))return;const d=defaults();const old=db.grps;d.grps.forEach(g=>{const o=old.find(x=>x.id===g.id);if(o){g.orders=o.orders;g.next=o.next}});db.items=d.items;db.grps=d.grps;save();toast('戻しました');viewData()}}
+ $('#def').onclick=()=>{if(!confirm('品目・グループの設定を初期値に戻します（チェックと注文の記録は残ります）'))return;const d=defaults();const old=db.grps;d.grps.forEach(g=>{const o=old.find(x=>x.id===g.id);if(o){g.orders=o.orders;g.next=o.next}});db.items=[...d.items,...db.items.filter(isSimple)];db.grps=d.grps;fixup();save();toast('戻しました');viewData()};
+ $('#addS').onclick=()=>addSimpleModal();
+ $('#xin').onclick=()=>{const f=$('#xf');f.value='';f.onchange=async()=>{const fl=f.files[0];if(!fl)return;toast('読んでいます…');try{await importXlsx(fl)}catch(e){alert('読めませんでした：'+e.message)}};f.click()};
+ $('#xout').onclick=()=>dl(csv(stockRows()),`zaiko-stock-${ymd(Date.now())}.csv`,'text/csv')}
+function addSimpleModal(){const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card"><h3>品目を足す（数えて管理する物）</h3>
+ <label class="f">名前</label><input id="an" placeholder="例：ゴム手袋 L">
+ <label class="f">分類</label><select id="ac">${Object.entries(CATS).map(([k,v])=>`<option value="${k}">${v}</option>`).join('')}</select>
+ <label class="f">区分（一覧の見出し。空でもよい）</label><input id="asb" placeholder="例：衛生・治療">
+ <label class="f">単位</label><input id="au" value="箱">
+ <div class="btns" style="margin-top:14px"><button class="btn pri" id="ok">足す</button><button class="btn" id="cx">やめる</button></div></div>`;
+ document.body.append(m);m.querySelector('#cx').onclick=()=>m.remove();m.querySelector('#ac').value=db.cfg.tab&&CATS[db.cfg.tab]?db.cfg.tab:'goods';
+ m.querySelector('#ok').onclick=()=>{const n=m.querySelector('#an').value.trim();if(!n)return alert('名前を入れてください');const id=uid();
+  db.items.push(newSimple({id,name:n,cat:m.querySelector('#ac').value,sub:m.querySelector('#asb').value.trim(),unit:m.querySelector('#au').value.trim()||'個'}));save();m.remove();location.hash='#i-'+id}}
+function newSimple(o){return Object.assign({id:uid(),name:'',cat:'goods',sub:'',kind:'simple',unit:'個',vendor:'',usual:null,ivl:null,lastOrd:'',min:null,every:null,lead:null,loc:'',xl:'',grp:null,active:true,needPhoto:false,note:'',orders:[],rules:[]},o)}
+
+/* ===== 牛舎マップとつなぐ ===== */
+/* 在庫のCSV（牛舎マップの「在庫アプリ貼り付け」に貼る）。1行目は見出し。品目は牛舎マップの名前（あれば） */
+function stockRows(){const R=[['品目','分類','区分','在庫','単位','数えた日','使用期限','ロット','頼んだ日','頼んだ数','入荷予定日','届いた日','置き場所','アプリの名前','メモ']];
+ const sl=d=>d?String(d).replace(/-/g,'/'):'';
+ for(const it of db.items.filter(i=>i.active)){const l=lastOf(it.id);const o=(it.orders||[]).slice().sort((a,b)=>a.on.localeCompare(b.on)).pop();
+  const t=l?new Date(l.at):null;
+  R.push([it.xl||it.name,CATS[catOf(it)],it.sub||(isSimple(it)?'':it.kind==='tank'?'タンク':'袋'),l?l.val:'',it.unit,t?sl(ymd(t))+' '+hm(t):'',sl(l?.exp),l?.lot||'',sl(o?.on),o?o.qty:'',sl(o?.eta),sl(o?.got),it.loc||'',it.name,l?.memo||''])}
+ return R}
+/* xlsx を読む（ZIPをほどいてXMLを読むだけ。式は計算しない＝Excelで最後に保存したときの値） */
+async function unzip(buf){const u=new Uint8Array(buf),v=new DataView(buf);let e=-1;for(let i=u.length-22;i>=Math.max(0,u.length-70000);i--)if(v.getUint32(i,true)===0x06054b50){e=i;break}
+ if(e<0)throw new Error('xlsx（ZIP）ではありません');const n=v.getUint16(e+10,true);let p=v.getUint32(e+16,true);const ent={};const dec=new TextDecoder();
+ for(let k=0;k<n;k++){if(v.getUint32(p,true)!==0x02014b50)break;const meth=v.getUint16(p+10,true),cs=v.getUint32(p+20,true),nl=v.getUint16(p+28,true),xl=v.getUint16(p+30,true),cl=v.getUint16(p+32,true),off=v.getUint32(p+42,true);
+  ent[dec.decode(u.subarray(p+46,p+46+nl))]={meth,cs,off};p+=46+nl+xl+cl}
+ return async name=>{const f=ent[name];if(!f)return null;const ln=v.getUint16(f.off+26,true),lx=v.getUint16(f.off+28,true);const data=u.subarray(f.off+30+ln+lx,f.off+30+ln+lx+f.cs);
+  if(f.meth===0)return dec.decode(data);if(f.meth!==8)throw new Error('この圧縮は読めません');
+  const st=new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'));return await new Response(st).text()}}
+const XP=t=>new DOMParser().parseFromString(t,'application/xml');
+const TAG=(n,t)=>[...n.getElementsByTagNameNS('*',t)];
+async function readBook(file){const get=await unzip(await file.arrayBuffer());const wb=XP(await get('xl/workbook.xml')||'');const rel=XP(await get('xl/_rels/workbook.xml.rels')||'');
+ const tg={};for(const r of TAG(rel,'Relationship')){let t=r.getAttribute('Target');t=t.startsWith('/')?t.slice(1):'xl/'+t.replace(/^\.\//,'');tg[r.getAttribute('Id')]=t}
+ const sheets={};for(const s of TAG(wb,'sheet')){const rid=s.getAttribute('r:id')||s.getAttributeNS('http://schemas.openxmlformats.org/officeDocument/2006/relationships','id');sheets[s.getAttribute('name')]=tg[rid]}
+ let sst=[];const ss=await get('xl/sharedStrings.xml');
+ if(ss)sst=TAG(XP(ss),'si').map(si=>TAG(si,'t').filter(t=>!['rPh'].includes(t.parentNode.localName)).map(t=>t.textContent).join(''));
+ return{names:Object.keys(sheets),async sheet(nm){const pth=sheets[nm];if(!pth)return null;const doc=XP(await get(pth));const C={};
+  for(const c of TAG(doc,'c')){const r=c.getAttribute('r'),t=c.getAttribute('t');const vv=TAG(c,'v')[0];let val=null;
+   if(t==='s')val=vv?sst[+vv.textContent]:null;else if(t==='inlineStr')val=TAG(c,'t').filter(x=>x.parentNode.localName!=='rPh').map(x=>x.textContent).join('');
+   else if(t==='str'||t==='e')val=vv?vv.textContent:null;else if(t==='b')val=vv?vv.textContent==='1':null;else val=vv&&vv.textContent!==''?Number(vv.textContent):null;
+   if(val!==null&&val!=='')C[r]=val}return C}}}
+const xd=n=>{if(typeof n!=='number'||!isFinite(n)||n<20000)return'';const d=new Date(Date.UTC(1899,11,30)+Math.round(n)*DAY);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0')};
+const xs=v=>v==null?'':String(v).trim();
+async function importXlsx(file){const bk=await readBook(file);
+ if(!bk.names.includes('定期発注品'))throw new Error('「定期発注品」シートがありません。牛舎マップ v15_16 以降の正本を選んでください');
+ const T=await bk.sheet('定期発注品');const list=[];
+ for(let r=5;r<=200;r++){const a=xs(T['A'+r]);if(!a)continue;if(/^・|^※/.test(a))continue;
+  list.push({xl:a,sub:xs(T['B'+r]),vendor:xs(T['C'+r]),usual:numOr(T['D'+r]),unit:xs(T['E'+r]),ivl:numOr(T['F'+r]),lastOrd:xd(T['G'+r]),note:xs(T['L'+r])})}
+ let nx=null;if(bk.names.includes('次の注文')){const N=await bk.sheet('次の注文');const rows=[];
+  for(let r=8;r<=14;r++){const a=xs(N['A'+r]);if(!a)continue;rows.push({name:a,unit:xs(N['B'+r]),q:['C','D','E'].map(c=>numOr(N[c+r],0)),k:['F','G','H'].map(c=>xs(N[c+r]))})}
+  nx={file:file.name,imp:ymd(Date.now()),impAt:Date.now(),dl:['C','D','E'].map(c=>xd(N[c+'6'])),dd:['C','D','E'].map(c=>xd(N[c+'7'])),rows}}
+ const add=[],upd=[];
+ for(const L of list){const it=db.items.find(i=>i.xl===L.xl)||db.items.find(i=>i.name===L.xl);
+  if(!it){add.push(L);continue}upd.push([it,L])}
+ const m=document.createElement('div');m.className='modal';m.innerHTML=`<div class="card"><h3>牛舎マップから取り込む</h3><p class="small">${esc(file.name)}</p>
+  <dl class="facts"><dt>定期発注品</dt><dd>${list.length}品目</dd><dt>新しく足す</dt><dd>${add.length}（餌 ${add.filter(L=>catFromSub(L.sub)==='feed').length}・雑貨 ${add.filter(L=>catFromSub(L.sub)==='goods').length}・薬品 ${add.filter(L=>catFromSub(L.sub)==='med').length}）</dd><dt>前からある</dt><dd>${upd.length}（発注先・いつもの量・間隔・前回の発注日を新しくする）</dd>
+  <dt>次の注文</dt><dd>${nx?`締切 ${nx.dl.filter(Boolean).map(d=>md(pd(d))).join('・')}`:'シートなし'}</dd></dl>
+  <p class="note">数えた在庫・置き場所・最低在庫・分類（アプリで変えたもの）はそのまま。前回の発注日は、アプリで「頼んだ」を押した日のほうが新しければアプリのほうを残します。</p>
+  <div class="btns" style="margin-top:12px"><button class="btn pri" id="ok">取り込む</button><button class="btn" id="cx">やめる</button></div></div>`;
+ document.body.append(m);m.querySelector('#cx').onclick=()=>m.remove();
+ m.querySelector('#ok').onclick=()=>{
+  for(const L of add)db.items.push(newSimple({name:L.xl,xl:L.xl,cat:catFromSub(L.sub),sub:L.sub,vendor:L.vendor,usual:L.usual,unit:L.unit||'個',ivl:L.ivl,lastOrd:L.lastOrd,note:L.note,lead:/ホクレン/.test(L.vendor+L.note)?7:null}));
+  for(const[it,L]of upd){Object.assign(it,{xl:L.xl,vendor:L.vendor||it.vendor,usual:L.usual??it.usual,ivl:L.ivl??it.ivl});if(isSimple(it)){it.sub=L.sub||it.sub;if(L.unit)it.unit=L.unit;if(!it.note)it.note=L.note}
+   if(L.lastOrd&&(!it.lastOrd||L.lastOrd>it.lastOrd))it.lastOrd=L.lastOrd}
+  let setN=[];if(nx){db.xlNext=nx;const d0=nx.dd.find(Boolean);if(d0)for(const g of db.grps.filter(g=>['seishi','sogo','ikusei','kb'].includes(g.id)))if(!g.next||g.next<ymd(Date.now())){g.next=d0;setN.push(g.name)}}
+  save();m.remove();toast(`取り込みました（足した ${add.length}・更新 ${upd.length}）`);if(setN.length)setTimeout(()=>toast('次の納品日を '+md(pd(nx.dd.find(Boolean)))+' にしました'),2300);location.hash='#home';route()}}
 
 function csv(rows){return'﻿'+rows.map(r=>r.map(v=>{v=String(v??'');return/[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v}).join(',')).join('\r\n')}
 function dl(data,name,type){const b=data instanceof Blob?data:new Blob([data],{type:type+';charset=utf-8'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=name;document.body.append(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},4000)}
